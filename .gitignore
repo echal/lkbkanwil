@@ -1,0 +1,149 @@
+# ============================================
+# GITIGNORE MONOREPO - SISTEM LAPORAN KINERJA
+# Kanwil Kementerian Agama Sulawesi Barat
+# ============================================
+
+# ────────────────────────────────────────────
+# FILE SENSITIF & KEAMANAN (PRIORITY TINGGI)
+# ────────────────────────────────────────────
+**/.env
+**/.env.*
+!**/.env.example
+**/auth.json
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+
+# Database credentials
+**/database.php
+**/config/database.php
+
+# Backup & SQL dumps
+*.sql
+*.sql.gz
+backup_*.sql
+
+# ────────────────────────────────────────────
+# BACKEND - LARAVEL (gaspul_api)
+# ────────────────────────────────────────────
+gaspul_api/.env
+gaspul_api/.env.backup
+gaspul_api/.env.production
+gaspul_api/vendor/
+gaspul_api/node_modules/
+gaspul_api/storage/*.key
+gaspul_api/storage/logs/*
+gaspul_api/storage/framework/cache/*
+gaspul_api/storage/framework/sessions/*
+gaspul_api/storage/framework/views/*
+gaspul_api/bootstrap/cache/*
+gaspul_api/public/hot
+gaspul_api/public/storage
+gaspul_api/.phpunit.result.cache
+gaspul_api/.phpunit.cache
+gaspul_api/Homestead.json
+gaspul_api/Homestead.yaml
+gaspul_api/npm-debug.log
+gaspul_api/yarn-error.log
+
+# IDE Laravel
+gaspul_api/.idea/
+gaspul_api/.vscode/
+gaspul_api/.fleet/
+gaspul_api/.phpactor.json
+
+# ────────────────────────────────────────────
+# FRONTEND - NEXT.JS (gaspul_lkh)
+# ────────────────────────────────────────────
+gaspul_lkh/.env
+gaspul_lkh/.env.local
+gaspul_lkh/.env.development.local
+gaspul_lkh/.env.test.local
+gaspul_lkh/.env.production.local
+gaspul_lkh/node_modules/
+gaspul_lkh/.next/
+gaspul_lkh/out/
+gaspul_lkh/build/
+gaspul_lkh/.cache/
+gaspul_lkh/dist/
+gaspul_lkh/.vercel
+
+# Next.js testing
+gaspul_lkh/coverage/
+gaspul_lkh/.nyc_output/
+
+# Next.js dependencies
+gaspul_lkh/.pnp.*
+gaspul_lkh/.yarn/*
+!gaspul_lkh/.yarn/patches
+!gaspul_lkh/.yarn/plugins
+!gaspul_lkh/.yarn/releases
+!gaspul_lkh/.yarn/versions
+
+# IDE Next.js
+gaspul_lkh/.vscode/
+gaspul_lkh/.idea/
+
+# ────────────────────────────────────────────
+# LEGACY FRONTEND (gaspul_frontend) - jika masih ada
+# ────────────────────────────────────────────
+gaspul_frontend/node_modules/
+gaspul_frontend/.env
+gaspul_frontend/.env.local
+gaspul_frontend/dist/
+gaspul_frontend/build/
+
+# ────────────────────────────────────────────
+# SISTEM OPERASI
+# ────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Windows
+$RECYCLE.BIN/
+*.lnk
+
+# ────────────────────────────────────────────
+# IDE & EDITOR
+# ────────────────────────────────────────────
+.vscode/
+.idea/
+.fleet/
+.zed/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+nbproject/
+
+# ────────────────────────────────────────────
+# LOGS & TEMPORARY FILES
+# ────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+
+# ────────────────────────────────────────────
+# FILE YANG BOLEH DIPUSH (WHITELIST)
+# ────────────────────────────────────────────
+!.gitignore
+!.env.example
+!*.md
+!README.md

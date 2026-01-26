@@ -1,0 +1,372 @@
+<?php
+
+namespace App\Http\Controllers\Api\Asn;
+
+use App\Http\Controllers\Controller;
+use App\Models\SkpTahunan;
+use App\Models\SasaranKegiatan;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+
+class SkpTahunanController extends Controller
+{
+    /**
+     * Get list of SKP Tahunan for authenticated ASN
+     */
+    public function index(Request $request)
+    {
+        $user = $request->user();
+
+        $query = SkpTahunan::with([
+            'sasaranKegiatan',
+            'indikatorKinerja',
+            'approver'
+        ])->where('user_id', $user->id);
+
+        // Filter by tahun
+        if ($request->has('tahun')) {
+            $query->where('tahun', $request->tahun);
+        }
+
+        // Filter by status
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $skpList = $query->orderBy('tahun', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Add calculated fields
+        $skpList->each(function ($skp) {
+            $skp->capaian_persen = $skp->capaian_persen;
+            $skp->can_be_edited = $skp->canBeEdited();
+            $skp->can_be_submitted = $skp->canBeSubmitted();
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $skpList
+        ]);
+    }
+
+    /**
+     * Get detail of specific SKP Tahunan
+     */
+    public function show(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $skp = SkpTahunan::with([
+            'sasaranKegiatan',
+            'indikatorKinerja',
+            'approver',
+            'skpTriwulan'
+        ])->find($id);
+
+        if (!$skp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'SKP Tahunan tidak ditemukan'
+            ], 404);
+        }
+
+        // Check ownership
+        if ($skp->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke SKP Tahunan ini'
+            ], 403);
+        }
+
+        $skp->capaian_persen = $skp->capaian_persen;
+        $skp->can_be_edited = $skp->canBeEdited();
+        $skp->can_be_submitted = $skp->canBeSubmitted();
+
+        return response()->json([
+            'success' => true,
+            'data' => $skp
+        ]);
+    }
+
+    /**
+     * Create new SKP Tahunan
+     */
+    public function store(Request $request)
+    {
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'sasaran_kegiatan_id' => 'required|integer|exists:sasaran_kegiatan,id',
+            'indikator_kinerja_id' => 'required|integer|exists:indikator_kinerja,id',
+            'tahun' => 'required|integer|min:2020|max:2100',
+            'target_tahunan' => 'required|integer|min:0',
+            'satuan' => 'required|string|max:50',
+            'rencana_aksi' => 'nullable|string|max:5000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Check if SKP Tahunan already exists for this user, sasaran, and tahun
+            $exists = SkpTahunan::where('user_id', $user->id)
+                ->where('sasaran_kegiatan_id', $request->sasaran_kegiatan_id)
+                ->where('tahun', $request->tahun)
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'SKP Tahunan untuk Sasaran Kegiatan dan Tahun ini sudah ada. Silakan edit SKP yang sudah ada atau pilih Sasaran Kegiatan/Tahun yang berbeda.'
+                ], 422);
+            }
+
+            $skp = SkpTahunan::create([
+                'user_id' => $user->id,
+                'sasaran_kegiatan_id' => $request->sasaran_kegiatan_id,
+                'indikator_kinerja_id' => $request->indikator_kinerja_id,
+                'tahun' => $request->tahun,
+                'target_tahunan' => $request->target_tahunan,
+                'satuan' => $request->satuan,
+                'rencana_aksi' => $request->rencana_aksi,
+                'status' => 'DRAFT',
+            ]);
+
+            $skp->load(['sasaranKegiatan', 'indikatorKinerja']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'SKP Tahunan berhasil dibuat',
+                'data' => $skp
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat SKP Tahunan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update SKP Tahunan
+     */
+    public function update(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $skp = SkpTahunan::find($id);
+
+        if (!$skp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'SKP Tahunan tidak ditemukan'
+            ], 404);
+        }
+
+        // Check ownership
+        if ($skp->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke SKP Tahunan ini'
+            ], 403);
+        }
+
+        // Check if can be edited
+        if (!$skp->canBeEdited()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'SKP Tahunan dengan status ' . $skp->status . ' tidak dapat diedit. Hanya SKP dengan status DRAFT atau DITOLAK yang dapat diedit.'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'sasaran_kegiatan_id' => 'required|integer|exists:sasaran_kegiatan,id',
+            'indikator_kinerja_id' => 'required|integer|exists:indikator_kinerja,id',
+            'tahun' => 'required|integer|min:2020|max:2100',
+            'target_tahunan' => 'required|integer|min:0',
+            'satuan' => 'required|string|max:50',
+            'rencana_aksi' => 'nullable|string|max:5000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Check uniqueness (excluding current SKP)
+            $exists = SkpTahunan::where('user_id', $user->id)
+                ->where('sasaran_kegiatan_id', $request->sasaran_kegiatan_id)
+                ->where('tahun', $request->tahun)
+                ->where('id', '!=', $id)
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'SKP Tahunan untuk Sasaran Kegiatan dan Tahun ini sudah ada.'
+                ], 422);
+            }
+
+            $skp->update([
+                'sasaran_kegiatan_id' => $request->sasaran_kegiatan_id,
+                'indikator_kinerja_id' => $request->indikator_kinerja_id,
+                'tahun' => $request->tahun,
+                'target_tahunan' => $request->target_tahunan,
+                'satuan' => $request->satuan,
+                'rencana_aksi' => $request->rencana_aksi,
+            ]);
+
+            $skp->load(['sasaranKegiatan', 'indikatorKinerja']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'SKP Tahunan berhasil diupdate',
+                'data' => $skp
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengupdate SKP Tahunan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete SKP Tahunan
+     */
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $skp = SkpTahunan::find($id);
+
+        if (!$skp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'SKP Tahunan tidak ditemukan'
+            ], 404);
+        }
+
+        // Check ownership
+        if ($skp->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke SKP Tahunan ini'
+            ], 403);
+        }
+
+        // Check if can be deleted (hanya DRAFT atau DITOLAK)
+        if (!$skp->canBeEdited()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'SKP Tahunan dengan status ' . $skp->status . ' tidak dapat dihapus'
+            ], 403);
+        }
+
+        try {
+            $skp->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'SKP Tahunan berhasil dihapus'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus SKP Tahunan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Submit SKP Tahunan for approval
+     */
+    public function submit(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $skp = SkpTahunan::find($id);
+
+        if (!$skp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'SKP Tahunan tidak ditemukan'
+            ], 404);
+        }
+
+        // Check ownership
+        if ($skp->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke SKP Tahunan ini'
+            ], 403);
+        }
+
+        // Check if can be submitted
+        if (!$skp->canBeSubmitted()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'SKP Tahunan dengan status ' . $skp->status . ' tidak dapat diajukan'
+            ], 403);
+        }
+
+        try {
+            $skp->update([
+                'status' => 'DIAJUKAN',
+                'catatan_atasan' => null,
+                'approved_by' => null,
+                'approved_at' => null,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'SKP Tahunan berhasil diajukan untuk persetujuan',
+                'data' => $skp
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengajukan SKP Tahunan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get approved SKP Tahunan list for creating Triwulan
+     * Only return SKP Tahunan with status DISETUJUI
+     */
+    public function getApprovedList(Request $request)
+    {
+        $user = $request->user();
+
+        $skpList = SkpTahunan::with([
+            'sasaranKegiatan',
+            'indikatorKinerja'
+        ])
+            ->where('user_id', $user->id)
+            ->where('status', 'DISETUJUI')
+            ->orderBy('tahun', 'desc')
+            ->get();
+
+        // Add display_name for dropdown
+        $skpList->each(function ($skp) {
+            $skp->display_name = $skp->display_name;
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $skpList
+        ]);
+    }
+}
