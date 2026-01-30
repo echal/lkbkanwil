@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\SkpTahunanDetail;
+use App\Models\UnitKerja;
 
 class IndikatorKinerja extends Model
 {
@@ -21,7 +24,11 @@ class IndikatorKinerja extends Model
      */
     protected $fillable = [
         'sasaran_kegiatan_id',
-        'indikator_kinerja',
+        'unit_kerja_id',
+        'kode_indikator',
+        'nama_indikator',
+        'satuan',
+        'tipe_target',
         'status',
     ];
 
@@ -38,7 +45,7 @@ class IndikatorKinerja extends Model
     /**
      * Scope untuk query hanya indikator yang aktif
      */
-    public function scopeActive($query)
+    public function scopeAktif($query)
     {
         return $query->where('status', 'AKTIF');
     }
@@ -53,14 +60,21 @@ class IndikatorKinerja extends Model
     }
 
     /**
-     * Check if this indikator is being used by any ASN
-     *
-     * @return bool
+     * Relasi ke SKP Tahunan Detail
+     * Satu indikator kinerja bisa dipilih di banyak SKP Tahunan Detail
      */
-    public function isDigunakanAsn(): bool
+    public function skpTahunanDetails(): HasMany
     {
-        // TODO: Implement logic to check if Indikator is used by ASN
-        // This should check the relationship with ASN's SKP data
-        return false;
+        return $this->hasMany(SkpTahunanDetail::class, 'indikator_kinerja_id');
     }
+
+    /**
+     * Relasi ke Unit Kerja
+     * Indikator bisa dibatasi untuk unit kerja tertentu
+     */
+    public function unitKerja(): BelongsTo
+    {
+        return $this->belongsTo(UnitKerja::class, 'unit_kerja_id');
+    }
+
 }

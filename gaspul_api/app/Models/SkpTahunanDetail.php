@@ -6,18 +6,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\IndikatorKinerja;
 
 /**
  * SKP Tahunan Detail (Butir Kinerja)
  *
- * Version: 2.0.0 (Total Refactor)
+ * Version: 3.0.0 (Konsolidasi RHK Architecture)
  *
  * PERUBAHAN KRUSIAL:
- * - HAPUS: sasaran_kegiatan_id (tidak perlu ditampilkan)
- * - UBAH: indikator_kinerja_id → rhk_pimpinan_id
+ * - KONSOLIDASI: Langsung ke indikator_kinerja_id (hapus layer rhk_pimpinan_id)
+ * - RELASI: indikatorKinerja() langsung ke IndikatorKinerja model
  * - TAMBAH: rencana_aksi (TEXT - rencana aksi ASN)
  * - NO UNIQUE CONSTRAINT - ASN boleh tambah RHK yang sama berkali-kali
- * - VALIDASI UNIQUE di level aplikasi: skp_tahunan_id + rhk_pimpinan_id + rencana_aksi
+ * - VALIDASI UNIQUE di level aplikasi: skp_tahunan_id + indikator_kinerja_id + rencana_aksi
  */
 class SkpTahunanDetail extends Model
 {
@@ -27,7 +28,7 @@ class SkpTahunanDetail extends Model
 
     protected $fillable = [
         'skp_tahunan_id',
-        'rhk_pimpinan_id',
+        'indikator_kinerja_id',
         'target_tahunan',
         'satuan',
         'rencana_aksi',
@@ -54,11 +55,11 @@ class SkpTahunanDetail extends Model
     }
 
     /**
-     * SKP Tahunan Detail belongs to RHK Pimpinan
+     * SKP Tahunan Detail belongs to Indikator Kinerja
      */
-    public function rhkPimpinan(): BelongsTo
+    public function indikatorKinerja(): BelongsTo
     {
-        return $this->belongsTo(RhkPimpinan::class, 'rhk_pimpinan_id');
+        return $this->belongsTo(IndikatorKinerja::class, 'indikator_kinerja_id');
     }
 
     /**
@@ -96,7 +97,7 @@ class SkpTahunanDetail extends Model
     {
         return sprintf(
             '%s (%d %s) - %s',
-            $this->rhkPimpinan->rhk_pimpinan ?? '-',
+            $this->indikatorKinerja->nama_indikator ?? '-',
             $this->target_tahunan,
             $this->satuan,
             \Str::limit($this->rencana_aksi, 50)

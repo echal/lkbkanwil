@@ -29,7 +29,7 @@ class SkpTahunanControllerV2 extends Controller
         try {
             $user = $request->user();
 
-            $query = SkpTahunan::with(['details.rhkPimpinan.indikatorKinerja.sasaranKegiatan', 'approver'])
+            $query = SkpTahunan::with(['details.indikatorKinerja.sasaranKegiatan', 'approver'])
                 ->where('user_id', $user->id);
 
             // Filter by tahun
@@ -73,7 +73,7 @@ class SkpTahunanControllerV2 extends Controller
             $user = $request->user();
 
             $skp = SkpTahunan::with([
-                'details.rhkPimpinan.indikatorKinerja.sasaranKegiatan',
+                'details.indikatorKinerja.sasaranKegiatan',
                 'details.rencanaAksiBulanan',
                 'approver'
             ])->find($id);
@@ -137,7 +137,7 @@ class SkpTahunanControllerV2 extends Controller
                 ]
             );
 
-            $skp->load(['details.rhkPimpinan.indikatorKinerja.sasaranKegiatan']);
+            $skp->load(['details.indikatorKinerja.sasaranKegiatan']);
 
             return response()->json([
                 'message' => $skp->wasRecentlyCreated ? 'SKP Tahunan header created' : 'SKP Tahunan header retrieved',
@@ -232,7 +232,7 @@ class SkpTahunanControllerV2 extends Controller
 
             DB::commit();
 
-            $detail->load(['rhkPimpinan.indikatorKinerja.sasaranKegiatan', 'rencanaAksiBulanan']);
+            $detail->load(['indikatorKinerja.sasaranKegiatan', 'rencanaAksiBulanan']);
 
             return response()->json([
                 'message' => 'Butir kinerja berhasil ditambahkan. 12 periode bulanan telah dibuat.',
@@ -325,7 +325,7 @@ class SkpTahunanControllerV2 extends Controller
                 'rencana_aksi',
             ]));
 
-            $detail->load(['rhkPimpinan.indikatorKinerja.sasaranKegiatan', 'rencanaAksiBulanan']);
+            $detail->load(['indikatorKinerja.sasaranKegiatan', 'rencanaAksiBulanan']);
 
             return response()->json([
                 'message' => 'Detail berhasil diperbarui',

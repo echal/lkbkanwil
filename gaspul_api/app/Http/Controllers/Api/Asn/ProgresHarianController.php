@@ -30,7 +30,7 @@ class ProgresHarianController extends Controller
             $user = $request->user();
 
             $query = ProgresHarian::with([
-                'rencanaAksiBulanan.skpTahunanDetail.rhkPimpinan',
+                'rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja',
                 'rencanaAksiBulanan.skpTahunanDetail.skpTahunan'
             ])->whereHas('rencanaAksiBulanan.skpTahunanDetail.skpTahunan', function ($q) use ($user) {
                 $q->where('user_id', $user->id);
@@ -96,7 +96,7 @@ class ProgresHarianController extends Controller
 
             // ✅ DUAL MODE QUERY: Get both KINERJA_HARIAN and TUGAS_ATASAN
             $progres = ProgresHarian::with([
-                'rencanaAksiBulanan.skpTahunanDetail.rhkPimpinan'
+                'rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja'
             ])->where(function ($query) use ($user) {
                 // TUGAS_ATASAN: Filter by user_id directly
                 $query->where(function ($q) use ($user) {
@@ -141,7 +141,7 @@ class ProgresHarianController extends Controller
     {
         try {
             $progres = ProgresHarian::with([
-                'rencanaAksiBulanan.skpTahunanDetail.rhkPimpinan.sasaranKegiatan',
+                'rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja.sasaranKegiatan',
                 'rencanaAksiBulanan.skpTahunanDetail.skpTahunan'
             ])->find($id);
 
@@ -309,7 +309,7 @@ class ProgresHarianController extends Controller
 
             // Trigger update realisasi bulanan (only for KINERJA_HARIAN)
             if ($tipeProgres === 'KINERJA_HARIAN') {
-                $progres->load(['rencanaAksiBulanan.skpTahunanDetail.rhkPimpinan']);
+                $progres->load(['rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja']);
             }
 
             return response()->json([
@@ -480,7 +480,7 @@ class ProgresHarianController extends Controller
 
             // Load relationship only for KINERJA_HARIAN
             if ($progres->tipe_progres === 'KINERJA_HARIAN') {
-                $progres->load(['rencanaAksiBulanan.skpTahunanDetail.rhkPimpinan']);
+                $progres->load(['rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja']);
             }
 
             return response()->json([
@@ -670,7 +670,7 @@ class ProgresHarianController extends Controller
 
             // ✅ DUAL MODE QUERY: Get both KINERJA_HARIAN and TUGAS_ATASAN for the month
             $progresList = ProgresHarian::with([
-                'rencanaAksiBulanan.skpTahunanDetail.rhkPimpinan'
+                'rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja'
             ])->where(function ($query) use ($user) {
                 // TUGAS_ATASAN: Filter by user_id directly
                 $query->where(function ($q) use ($user) {

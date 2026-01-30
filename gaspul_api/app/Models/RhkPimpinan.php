@@ -27,6 +27,7 @@ class RhkPimpinan extends Model
 
     protected $fillable = [
         'indikator_kinerja_id',
+        'unit_kerja_id',
         'rhk_pimpinan',
         'status',
     ];
@@ -46,6 +47,14 @@ class RhkPimpinan extends Model
     public function indikatorKinerja(): BelongsTo
     {
         return $this->belongsTo(IndikatorKinerja::class);
+    }
+
+    /**
+     * RHK Pimpinan belongs to Unit Kerja
+     */
+    public function unitKerja(): BelongsTo
+    {
+        return $this->belongsTo(UnitKerja::class);
     }
 
     /**
@@ -74,6 +83,14 @@ class RhkPimpinan extends Model
     public function scopeByIndikatorKinerja($query, int $indikatorKinerjaId)
     {
         return $query->where('indikator_kinerja_id', $indikatorKinerjaId);
+    }
+
+    /**
+     * Scope: By Unit Kerja
+     */
+    public function scopeByUnitKerja($query, int $unitKerjaId)
+    {
+        return $query->where('unit_kerja_id', $unitKerjaId);
     }
 
     // ============================================================================

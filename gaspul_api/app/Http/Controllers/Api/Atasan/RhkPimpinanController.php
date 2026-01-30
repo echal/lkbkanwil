@@ -7,6 +7,7 @@ use App\Models\RhkPimpinan;
 use App\Models\IndikatorKinerja;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * RHK Pimpinan Controller
@@ -18,14 +19,21 @@ class RhkPimpinanController extends Controller
 {
     /**
      * Get all RHK Pimpinan with filters
+     * Filter by atasan's unit kerja
      */
     public function index(Request $request)
     {
         try {
+            $atasan = Auth::user();
+
             $query = RhkPimpinan::with([
                 'indikatorKinerja.sasaranKegiatan',
+                'unitKerja',
                 'skpTahunanDetails'
             ])->withCount('skpTahunanDetails');
+
+            // Filter by atasan's unit kerja
+            $query->where('unit_kerja_id', $atasan->unit_kerja_id);
 
             // Filter by indikator_kinerja_id
             if ($request->has('indikator_kinerja_id')) {
@@ -57,12 +65,16 @@ class RhkPimpinanController extends Controller
 
     /**
      * Get active RHK Pimpinan (for dropdown)
+     * Filter by atasan's unit kerja
      */
     public function getActive()
     {
         try {
+            $atasan = Auth::user();
+
             $rhkList = RhkPimpinan::active()
-                ->with(['indikatorKinerja.sasaranKegiatan'])
+                ->where('unit_kerja_id', $atasan->unit_kerja_id)
+                ->with(['indikatorKinerja.sasaranKegiatan', 'unitKerja'])
                 ->orderBy('indikator_kinerja_id')
                 ->orderBy('rhk_pimpinan')
                 ->get();
@@ -78,13 +90,17 @@ class RhkPimpinanController extends Controller
 
     /**
      * Get RHK Pimpinan by Indikator Kinerja
+     * Filter by atasan's unit kerja
      */
     public function getByIndikatorKinerja($indikatorKinerjaId)
     {
         try {
+            $atasan = Auth::user();
+
             $rhkList = RhkPimpinan::active()
                 ->where('indikator_kinerja_id', $indikatorKinerjaId)
-                ->with(['indikatorKinerja'])
+                ->where('unit_kerja_id', $atasan->unit_kerja_id)
+                ->with(['indikatorKinerja', 'unitKerja'])
                 ->orderBy('rhk_pimpinan')
                 ->get();
 
@@ -117,10 +133,13 @@ class RhkPimpinanController extends Controller
 
     /**
      * Create new RHK Pimpinan
+     * Auto-assign to atasan's unit kerja
      */
     public function store(Request $request)
     {
         try {
+            $atasan = Auth::user();
+
             $validator = Validator::make($request->all(), [
                 'indikator_kinerja_id' => 'required|exists:indikator_kinerja,id',
                 'rhk_pimpinan' => 'required|string|max:1000',
@@ -142,24 +161,26 @@ class RhkPimpinanController extends Controller
                 ], 422);
             }
 
-            // Validasi: RHK Pimpinan tidak boleh duplikat untuk indikator yang sama
+            // Validasi: RHK Pimpinan tidak boleh duplikat untuk indikator yang sama di unit kerja yang sama
             $exists = RhkPimpinan::where('indikator_kinerja_id', $request->indikator_kinerja_id)
+                ->where('unit_kerja_id', $atasan->unit_kerja_id)
                 ->where('rhk_pimpinan', $request->rhk_pimpinan)
                 ->exists();
 
             if ($exists) {
                 return response()->json([
-                    'message' => 'RHK Pimpinan dengan nama yang sama sudah ada untuk indikator kinerja ini'
+                    'message' => 'RHK Pimpinan dengan nama yang sama sudah ada untuk indikator kinerja ini di unit kerja Anda'
                 ], 422);
             }
 
             $rhk = RhkPimpinan::create([
                 'indikator_kinerja_id' => $request->indikator_kinerja_id,
+                'unit_kerja_id' => $atasan->unit_kerja_id,
                 'rhk_pimpinan' => $request->rhk_pimpinan,
                 'status' => $request->status ?? 'AKTIF',
             ]);
 
-            $rhk->load('indikatorKinerja');
+            $rhk->load(['indikatorKinerja', 'unitKerja']);
 
             return response()->json([
                 'message' => 'RHK Pimpinan created successfully',
@@ -175,11 +196,14 @@ class RhkPimpinanController extends Controller
 
     /**
      * Update RHK Pimpinan
+     * Security: Only allow updating RHK from atasan's unit kerja
      */
     public function update(Request $request, $id)
     {
         try {
-            $rhk = RhkPimpinan::findOrFail($id);
+            $atasan = Auth::user();
+            $rhk = RhkPimpinan::where('unit_kerja_id', $atasan->unit_kerja_id)
+                ->findOrFail($id);
 
             $validator = Validator::make($request->all(), [
                 'indikator_kinerja_id' => 'sometimes|exists:indikator_kinerja,id',
@@ -200,13 +224,14 @@ class RhkPimpinanController extends Controller
                 $checkRhk = $request->rhk_pimpinan ?? $rhk->rhk_pimpinan;
 
                 $exists = RhkPimpinan::where('indikator_kinerja_id', $checkIndikatorId)
+                    ->where('unit_kerja_id', $atasan->unit_kerja_id)
                     ->where('rhk_pimpinan', $checkRhk)
                     ->where('id', '!=', $id)
                     ->exists();
 
                 if ($exists) {
                     return response()->json([
-                        'message' => 'RHK Pimpinan dengan nama yang sama sudah ada untuk indikator kinerja ini'
+                        'message' => 'RHK Pimpinan dengan nama yang sama sudah ada untuk indikator kinerja ini di unit kerja Anda'
                     ], 422);
                 }
             }
@@ -217,7 +242,7 @@ class RhkPimpinanController extends Controller
                 'status',
             ]));
 
-            $rhk->load('indikatorKinerja');
+            $rhk->load(['indikatorKinerja', 'unitKerja']);
 
             return response()->json([
                 'message' => 'RHK Pimpinan updated successfully',
@@ -233,11 +258,14 @@ class RhkPimpinanController extends Controller
 
     /**
      * Delete RHK Pimpinan
+     * Security: Only allow deleting RHK from atasan's unit kerja
      */
     public function destroy($id)
     {
         try {
-            $rhk = RhkPimpinan::findOrFail($id);
+            $atasan = Auth::user();
+            $rhk = RhkPimpinan::where('unit_kerja_id', $atasan->unit_kerja_id)
+                ->findOrFail($id);
 
             // Validasi: Tidak bisa dihapus jika sudah digunakan di SKP
             $usageCount = $rhk->skpTahunanDetails()->count();

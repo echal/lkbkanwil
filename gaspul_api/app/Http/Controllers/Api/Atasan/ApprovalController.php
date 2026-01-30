@@ -43,7 +43,7 @@ class ApprovalController extends Controller
         $query = SkpTahunan::with([
             'user.unit',
             'approver',
-            'details.rhkPimpinan.indikatorKinerja.sasaranKegiatan'
+            'details.indikatorKinerja.sasaranKegiatan'
         ])->withCount('details');
 
         // Filter by status (default: DIAJUKAN)
@@ -87,7 +87,7 @@ class ApprovalController extends Controller
         $skpTahunan = SkpTahunan::with([
             'user.unit',
             'approver',
-            'details.rhkPimpinan.indikatorKinerja.sasaranKegiatan'
+            'details.indikatorKinerja.sasaranKegiatan'
         ])->find($id);
 
         if (!$skpTahunan) {
@@ -169,7 +169,7 @@ class ApprovalController extends Controller
             $skpTahunan->load([
                 'user.unit',
                 'approver',
-                'details.rhkPimpinan.indikatorKinerja.sasaranKegiatan'
+                'details.indikatorKinerja.sasaranKegiatan'
             ]);
 
             return response()->json([
@@ -236,7 +236,7 @@ class ApprovalController extends Controller
             $skpTahunan->load([
                 'user.unit',
                 'approver',
-                'details.rhkPimpinan.indikatorKinerja.sasaranKegiatan'
+                'details.indikatorKinerja.sasaranKegiatan'
             ]);
 
             return response()->json([

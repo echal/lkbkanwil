@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | API Base URL
+    |--------------------------------------------------------------------------
+    |
+    | This URL is used to make HTTP requests to the internal API endpoints.
+    | For production, this should point to your Laravel API public URL.
+    |
+    */
+
+    'api_url' => env('API_BASE_URL', env('APP_URL', 'http://localhost') . '/api'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
@@ -65,7 +77,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => 'Asia/Makassar',
 
     /*
     |--------------------------------------------------------------------------

@@ -20,8 +20,9 @@ class SasaranKegiatan extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'unit_kerja',
-        'sasaran_kegiatan',
+        'kode_sasaran',
+        'nama_sasaran',
+        'deskripsi',
         'status',
     ];
 
@@ -35,10 +36,7 @@ class SasaranKegiatan extends Model
         'updated_at' => 'datetime',
     ];
 
-    /**
-     * Scope untuk query hanya sasaran yang aktif
-     */
-    public function scopeActive($query)
+    public function scopeAktif($query)
     {
         return $query->where('status', 'AKTIF');
     }
@@ -52,23 +50,4 @@ class SasaranKegiatan extends Model
         return $this->hasMany(IndikatorKinerja::class);
     }
 
-    /**
-     * Get only active indikator kinerja
-     */
-    public function indikatorKinerjaAktif(): HasMany
-    {
-        return $this->hasMany(IndikatorKinerja::class)->where('status', 'AKTIF');
-    }
-
-    /**
-     * Check if this sasaran is being used by any ASN
-     *
-     * @return bool
-     */
-    public function isDigunakanAsn(): bool
-    {
-        // TODO: Implement logic to check if Sasaran is used by ASN
-        // This should check the relationship with ASN's SKP data
-        return false;
-    }
 }

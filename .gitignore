@@ -54,45 +54,10 @@ gaspul_api/.fleet/
 gaspul_api/.phpactor.json
 
 # ────────────────────────────────────────────
-# FRONTEND - NEXT.JS (gaspul_lkh)
+# LEGACY FOLDERS (DELETED - Keep gitignore for safety)
 # ────────────────────────────────────────────
-gaspul_lkh/.env
-gaspul_lkh/.env.local
-gaspul_lkh/.env.development.local
-gaspul_lkh/.env.test.local
-gaspul_lkh/.env.production.local
-gaspul_lkh/node_modules/
-gaspul_lkh/.next/
-gaspul_lkh/out/
-gaspul_lkh/build/
-gaspul_lkh/.cache/
-gaspul_lkh/dist/
-gaspul_lkh/.vercel
-
-# Next.js testing
-gaspul_lkh/coverage/
-gaspul_lkh/.nyc_output/
-
-# Next.js dependencies
-gaspul_lkh/.pnp.*
-gaspul_lkh/.yarn/*
-!gaspul_lkh/.yarn/patches
-!gaspul_lkh/.yarn/plugins
-!gaspul_lkh/.yarn/releases
-!gaspul_lkh/.yarn/versions
-
-# IDE Next.js
-gaspul_lkh/.vscode/
-gaspul_lkh/.idea/
-
-# ────────────────────────────────────────────
-# LEGACY FRONTEND (gaspul_frontend) - jika masih ada
-# ────────────────────────────────────────────
-gaspul_frontend/node_modules/
-gaspul_frontend/.env
-gaspul_frontend/.env.local
-gaspul_frontend/dist/
-gaspul_frontend/build/
+# gaspul_lkh/      - REMOVED (Next.js frontend sudah tidak dipakai)
+# gaspul_frontend/ - REMOVED (Legacy frontend)
 
 # ────────────────────────────────────────────
 # SISTEM OPERASI

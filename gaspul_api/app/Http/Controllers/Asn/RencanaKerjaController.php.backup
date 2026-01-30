@@ -1,0 +1,173 @@
+<?php
+
+namespace App\Http\Controllers\Asn;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class RencanaKerjaController extends Controller
+{
+    public function index(Request $request)
+    {
+        $asn = Auth::user();
+        $tahun = $request->input('tahun', now()->year);
+
+        // TODO: Replace with real database query
+        // For now, use session for demonstration
+        $sessionKey = 'rencana_kerja_' . $asn->id . '_' . $tahun;
+        $sessionData = session($sessionKey, []);
+
+        // Convert to collection with proper structure
+        $rencanaKerja = collect($sessionData)->map(function($item) {
+            return (object) $item;
+        });
+
+        return view('asn.rencana-kerja.index', [
+            'rencanaKerja' => $rencanaKerja,
+        ]);
+    }
+
+    public function create()
+    {
+        return view('asn.rencana-kerja.tambah');
+    }
+
+    public function store(Request $request)
+    {
+        // Validate input
+        $validated = $request->validate([
+            'bulan' => 'required|integer|min:1|max:12',
+            'tahun' => 'required|integer|min:2020|max:2100',
+            'uraian' => 'required|string',
+            'target' => 'required|numeric|min:0',
+            'satuan' => 'required|string|max:50',
+            'keterangan' => 'nullable|string',
+        ]);
+
+        $asn = Auth::user();
+
+        // TODO: Replace with real database insert
+        // For now, save to session for demonstration
+        $sessionKey = 'rencana_kerja_' . $asn->id . '_' . $validated['tahun'];
+        $existingData = session($sessionKey, []);
+
+        // Generate unique ID
+        $uniqueId = time() . '_' . rand(1000, 9999);
+
+        $existingData[] = [
+            'id' => $uniqueId,
+            'bulan' => $validated['bulan'],
+            'tahun' => $validated['tahun'],
+            'uraian' => $validated['uraian'],
+            'target' => $validated['target'],
+            'satuan' => $validated['satuan'],
+            'keterangan' => $validated['keterangan'] ?? null,
+            'realisasi' => 0,
+            'updated_at' => now()->toDateTimeString(),
+        ];
+
+        session([$sessionKey => $existingData]);
+
+        return redirect()->route('asn.rencana-kerja.index', ['tahun' => $validated['tahun']])
+            ->with('success', 'Rencana kerja berhasil disimpan!');
+    }
+
+    public function show($id)
+    {
+        return view('asn.rencana-kerja.detail', compact('id'));
+    }
+
+    public function edit($id)
+    {
+        $asn = Auth::user();
+        $tahun = request('tahun', now()->year);
+
+        // TODO: Replace with real database query
+        // For now, get from session
+        $sessionKey = 'rencana_kerja_' . $asn->id . '_' . $tahun;
+        $sessionData = session($sessionKey, []);
+
+        $rencana = null;
+        foreach ($sessionData as $item) {
+            if ($item['id'] == $id) {
+                $rencana = $item;
+                break;
+            }
+        }
+
+        if (!$rencana) {
+            return redirect()->route('asn.rencana-kerja.index', ['tahun' => $tahun])
+                ->with('error', 'Rencana kerja tidak ditemukan');
+        }
+
+        return view('asn.rencana-kerja.edit', [
+            'rencana' => $rencana,
+        ]);
+    }
+
+    public function update(Request $request, $id)
+    {
+        // Validate input
+        $validated = $request->validate([
+            'bulan' => 'required|integer|min:1|max:12',
+            'tahun' => 'required|integer|min:2020|max:2100',
+            'uraian' => 'required|string',
+            'target' => 'required|numeric|min:0',
+            'satuan' => 'required|string|max:50',
+            'keterangan' => 'nullable|string',
+        ]);
+
+        $asn = Auth::user();
+
+        // TODO: Replace with real database update
+        // For now, update in session
+        $sessionKey = 'rencana_kerja_' . $asn->id . '_' . $validated['tahun'];
+        $sessionData = session($sessionKey, []);
+
+        $updated = false;
+        foreach ($sessionData as &$item) {
+            if ($item['id'] == $id) {
+                $item['bulan'] = $validated['bulan'];
+                $item['uraian'] = $validated['uraian'];
+                $item['target'] = $validated['target'];
+                $item['satuan'] = $validated['satuan'];
+                $item['keterangan'] = $validated['keterangan'] ?? null;
+                $item['updated_at'] = now()->toDateTimeString();
+                $updated = true;
+                break;
+            }
+        }
+
+        if ($updated) {
+            session([$sessionKey => $sessionData]);
+            return redirect()->route('asn.rencana-kerja.index', ['tahun' => $validated['tahun']])
+                ->with('success', 'Rencana kerja berhasil diupdate!');
+        }
+
+        return redirect()->route('asn.rencana-kerja.index', ['tahun' => $validated['tahun']])
+            ->with('error', 'Rencana kerja tidak ditemukan');
+    }
+
+    public function destroy($id)
+    {
+        $asn = Auth::user();
+        $tahun = request('tahun', now()->year);
+
+        // TODO: Replace with real database deletion
+        // For now, remove from session
+        $sessionKey = 'rencana_kerja_' . $asn->id . '_' . $tahun;
+        $sessionData = session($sessionKey, []);
+
+        $sessionData = array_values(
+            array_filter($sessionData, function($item) use ($id) {
+                return $item['id'] != $id;
+            })
+        );
+
+        session([$sessionKey => $sessionData]);
+
+        return redirect()->route('asn.rencana-kerja.index', ['tahun' => $tahun])
+            ->with('success', 'Rencana kerja berhasil dihapus!');
+    }
+}

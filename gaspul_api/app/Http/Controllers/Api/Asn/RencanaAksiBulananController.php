@@ -26,7 +26,7 @@ class RencanaAksiBulananController extends Controller
             $user = $request->user();
 
             $query = RencanaAksiBulanan::with([
-                'skpTahunanDetail.rhkPimpinan.indikatorKinerja.sasaranKegiatan',
+                'skpTahunanDetail.indikatorKinerja.sasaranKegiatan',
                 'skpTahunanDetail.skpTahunan',
                 'progresHarian'
             ])->whereHas('skpTahunanDetail.skpTahunan', function ($q) use ($user) {
@@ -101,7 +101,7 @@ class RencanaAksiBulananController extends Controller
     {
         try {
             $rencana = RencanaAksiBulanan::with([
-                'skpTahunanDetail.rhkPimpinan.indikatorKinerja.sasaranKegiatan',
+                'skpTahunanDetail.indikatorKinerja.sasaranKegiatan',
                 'skpTahunanDetail.skpTahunan',
                 'progresHarian'
             ])->find($id);
@@ -174,7 +174,7 @@ class RencanaAksiBulananController extends Controller
             ]);
 
             $rencana->load([
-                'skpTahunanDetail.rhkPimpinan.indikatorKinerja.sasaranKegiatan',
+                'skpTahunanDetail.indikatorKinerja.sasaranKegiatan',
                 'progresHarian'
             ]);
 
@@ -215,7 +215,7 @@ class RencanaAksiBulananController extends Controller
                 ->whereHas('skpTahunanDetail.skpTahunan', function ($q) use ($user) {
                     $q->where('user_id', $user->id);
                 })
-                ->with(['skpTahunanDetail.rhkPimpinan'])
+                ->with(['skpTahunanDetail.indikatorKinerja'])
                 ->get()
                 ->groupBy('bulan')
                 ->map(function ($items, $bulan) {

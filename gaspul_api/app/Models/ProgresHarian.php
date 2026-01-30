@@ -64,6 +64,14 @@ class ProgresHarian extends Model
     // ============================================================================
 
     /**
+     * Progres Harian belongs to User (ASN)
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
      * Progres Harian belongs to Rencana Aksi Bulanan
      */
     public function rencanaAksiBulanan(): BelongsTo

@@ -23,12 +23,11 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role', // ASN | ATASAN | ADMIN
+        'role',
         'nip',
-        'unit_kerja', // DEPRECATED - Use unit_id instead (kept for backward compatibility)
-        'unit_id', // FK to units table
+        'unit_kerja_id',
         'jabatan',
-        'status', // AKTIF | NONAKTIF
+        'status_pegawai',
     ];
 
     /**
@@ -54,25 +53,8 @@ class User extends Authenticatable
         ];
     }
 
-    /**
-     * Relationship: User belongs to Unit
-     */
-    public function unit(): BelongsTo
+    public function unitKerja(): BelongsTo
     {
-        return $this->belongsTo(Unit::class);
-    }
-
-    /**
-     * Get unit name (with fallback to unit_kerja for backward compatibility)
-     */
-    public function getUnitNameAttribute(): ?string
-    {
-        // Prefer unit relationship if exists
-        if ($this->unit_id && $this->unit) {
-            return $this->unit->nama_unit;
-        }
-
-        // Fallback to old unit_kerja field
-        return $this->unit_kerja;
+        return $this->belongsTo(UnitKerja::class);
     }
 }
