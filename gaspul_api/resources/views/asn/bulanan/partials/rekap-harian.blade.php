@@ -39,7 +39,11 @@
                                         </div>
 
                                         <p class="text-xs text-gray-500 mb-1">
-                                            <strong>Indikator Kinerja:</strong> {{ Str::limit($kegiatan['indikator_kinerja'], 60) }}
+                                            <strong>Indikator Kinerja:</strong>
+                                            @php
+                                                $text = $kegiatan['indikator_kinerja'];
+                                                echo strlen($text) > 60 ? substr($text, 0, 60) . '...' : $text;
+                                            @endphp
                                         </p>
 
                                         <p class="text-sm font-medium text-gray-900">{{ $kegiatan['kegiatan'] }}</p>

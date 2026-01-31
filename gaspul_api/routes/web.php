@@ -63,6 +63,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/harian/edit/{id}', [HarianController::class, 'edit'])->name('harian.edit');
         Route::put('/harian/update/{id}', [HarianController::class, 'update'])->name('harian.update');
         Route::delete('/harian/destroy/{id}', [HarianController::class, 'destroy'])->name('harian.destroy');
+        Route::get('/harian/cetak/{id}', [HarianController::class, 'cetakKinerjaHarian'])->name('harian.cetak');
+        Route::get('/harian/cetak-tla/{id}', [HarianController::class, 'cetakTugasAtasan'])->name('harian.cetak-tla');
 
         // Rencana Kerja
         Route::get('/rencana-kerja', [RencanaKerjaController::class, 'index'])->name('rencana-kerja.index');

@@ -26,7 +26,12 @@
                             <p class="text-sm font-semibold text-gray-900">{{ $rhk['indikator_kinerja'] }}</p>
                             <p class="text-xs text-gray-500 mt-1">Kode: {{ $rhk['kode_indikator'] }}</p>
                         </td>
-                        <td class="px-4 py-3 text-sm text-gray-700">{{ Str::limit($rhk['rencana_aksi_bulanan'] ?? '-', 80) }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">
+                            @php
+                                $text = $rhk['rencana_aksi_bulanan'] ?? '-';
+                                echo strlen($text) > 80 ? substr($text, 0, 80) . '...' : $text;
+                            @endphp
+                        </td>
                         <td class="px-4 py-3 text-center text-sm text-gray-900">
                             <span class="font-semibold">{{ $rhk['target_bulanan'] }}</span>
                             <span class="text-gray-500">{{ $rhk['satuan'] }}</span>

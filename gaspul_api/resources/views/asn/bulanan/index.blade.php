@@ -76,6 +76,7 @@
         @include('asn.bulanan.partials.header')
         @include('asn.bulanan.partials.ringkasan')
         @include('asn.bulanan.partials.rekap-rhk')
+        @include('asn.bulanan.partials.rekap-detail-harian')
         @include('asn.bulanan.partials.rekap-harian')
         @include('asn.bulanan.partials.kesimpulan')
     @endif

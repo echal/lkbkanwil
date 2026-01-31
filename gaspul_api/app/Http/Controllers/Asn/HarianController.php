@@ -534,4 +534,55 @@ class HarianController extends Controller
         return redirect()->route('asn.harian.index', ['date' => $date])
             ->with('error', 'Progres harian tidak ditemukan');
     }
+
+    /**
+     * Cetak PDF untuk Kinerja Harian (LKH) individual
+     */
+    public function cetakKinerjaHarian($id)
+    {
+        $asn = Auth::user();
+
+        $progres = ProgresHarian::with([
+            'rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja',
+            'user'
+        ])
+        ->where('id', $id)
+        ->where('user_id', $asn->id)
+        ->where('tipe_progres', 'KINERJA_HARIAN')
+        ->firstOrFail();
+
+        $pdf = \PDF::loadView('asn.laporan.pdf.kinerja-harian-single', [
+            'progres' => $progres,
+            'asn' => $asn,
+            'tanggal' => Carbon::parse($progres->tanggal)->translatedFormat('d F Y'),
+        ]);
+
+        $fileName = 'LKH_' . $asn->name . '_' . Carbon::parse($progres->tanggal)->format('d-m-Y') . '.pdf';
+
+        return $pdf->download($fileName);
+    }
+
+    /**
+     * Cetak PDF untuk Tugas Atasan (TLA) individual
+     */
+    public function cetakTugasAtasan($id)
+    {
+        $asn = Auth::user();
+
+        $progres = ProgresHarian::with('user')
+            ->where('id', $id)
+            ->where('user_id', $asn->id)
+            ->where('tipe_progres', 'TUGAS_ATASAN')
+            ->firstOrFail();
+
+        $pdf = \PDF::loadView('asn.laporan.pdf.tugas-atasan-single', [
+            'progres' => $progres,
+            'asn' => $asn,
+            'tanggal' => Carbon::parse($progres->tanggal)->translatedFormat('d F Y'),
+        ]);
+
+        $fileName = 'TLA_' . $asn->name . '_' . Carbon::parse($progres->tanggal)->format('d-m-Y') . '.pdf';
+
+        return $pdf->download($fileName);
+    }
 }

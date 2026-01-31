@@ -179,7 +179,10 @@ class BulananController extends Controller
             'status_capaian' => $statusCapaian,
         ]);
 
-        // 8. STATUS LAPORAN (dari database atau default)
+        // 8. REKAP KERJA HARIAN DETAIL (untuk tabel baru)
+        $rekapKerjaHarianDetail = $this->buildRekapKerjaHarianDetail($progresHarianList, $asn);
+
+        // 9. STATUS LAPORAN (dari database atau default)
         // TODO: Buat tabel laporan_bulanan untuk tracking status
         $statusLaporan = 'DRAFT'; // DRAFT, DIKIRIM, DISETUJUI, DITOLAK
 
@@ -201,6 +204,7 @@ class BulananController extends Controller
             // Detail Rekap
             'rekapRhkBulanan' => $rekapRhkBulanan,
             'rekapKinerjaHarian' => $rekapKinerjaHarian,
+            'rekapKerjaHarianDetail' => $rekapKerjaHarianDetail,
 
             // Kesimpulan & Status
             'kesimpulanOtomatis' => $kesimpulanOtomatis,
@@ -292,5 +296,47 @@ class BulananController extends Controller
         ];
 
         return $namaBulan[$bulan] ?? '-';
+    }
+
+    /**
+     * Helper: Build Rekap Kerja Harian Detail untuk tabel detail
+     */
+    private function buildRekapKerjaHarianDetail($progresHarianList, $asn)
+    {
+        $rekapDetail = [];
+
+        foreach ($progresHarianList as $progres) {
+            $jamKerja = substr($progres->jam_mulai, 0, 5) . ' - ' . substr($progres->jam_selesai, 0, 5);
+            $jenisKegiatan = $progres->tipe_progres === 'TUGAS_ATASAN' ? 'TLA' : 'LKH';
+
+            // Uraian kegiatan: gunakan tugas_atasan jika TLA, jika tidak gunakan rencana_kegiatan_harian
+            $uraianKegiatan = $progres->rencana_kegiatan_harian;
+            if ($progres->tipe_progres === 'TUGAS_ATASAN' && !empty($progres->tugas_atasan)) {
+                $uraianKegiatan = $progres->tugas_atasan;
+            }
+
+            // Volume dengan satuan
+            $volume = $progres->progres > 0 ? $progres->progres . ' ' . $progres->satuan : '-';
+
+            $rekapDetail[] = [
+                'id' => $progres->id,
+                'tanggal' => $progres->tanggal,
+                'nama_pegawai' => $asn->name,
+                'nip' => $asn->nip ?? '-',
+                'jam_kerja' => $jamKerja,
+                'durasi_menit' => $progres->durasi_menit,
+                'durasi_formatted' => floor($progres->durasi_menit / 60) . ' jam ' . ($progres->durasi_menit % 60) . ' menit',
+                'uraian_kegiatan' => $uraianKegiatan,
+                'volume' => $volume,
+                'progres' => $progres->progres,
+                'satuan' => $progres->satuan,
+                'jenis_kegiatan' => $jenisKegiatan,
+                'tipe_progres' => $progres->tipe_progres,
+                'status_bukti' => $progres->status_bukti,
+                'bukti_dukung' => $progres->bukti_dukung,
+            ];
+        }
+
+        return $rekapDetail;
     }
 }
