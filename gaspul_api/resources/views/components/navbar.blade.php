@@ -89,7 +89,7 @@
                         <div class="border-t border-gray-100 my-1"></div>
 
                         <!-- Logout -->
-                        <form method="POST" action="{{ route('logout') }}">
+                        <form method="POST" action="{{ route('logout') }}" id="logout-form">
                             @csrf
                             <button type="submit" class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition">
                                 <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,6 +98,33 @@
                                 Keluar
                             </button>
                         </form>
+
+                        <script>
+                            // Handle logout dengan CSRF error prevention
+                            document.getElementById('logout-form').addEventListener('submit', function(e) {
+                                e.preventDefault();
+
+                                // Get fresh CSRF token
+                                fetch('{{ route("logout") }}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}',
+                                        'Accept': 'application/json',
+                                    },
+                                    credentials: 'same-origin'
+                                })
+                                .then(response => {
+                                    // Redirect ke login regardless of response
+                                    window.location.href = '{{ route("login") }}';
+                                })
+                                .catch(error => {
+                                    // Jika ada error (termasuk 419), tetap redirect ke login
+                                    console.log('Logout completed');
+                                    window.location.href = '{{ route("login") }}';
+                                });
+                            });
+                        </script>
                     </div>
                 </div>
 

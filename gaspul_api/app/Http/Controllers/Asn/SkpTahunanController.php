@@ -131,28 +131,29 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
+        // Eager load skpTahunan relation untuk security check
         $detail = SkpTahunanDetail::with(['skpTahunan', 'indikatorKinerja.sasaranKegiatan'])
             ->findOrFail($id);
 
-        // Security check
-        if ($detail->skpTahunan->user_id !== $asn->id) {
-            abort(403, 'Unauthorized');
+        // Security check: pastikan SKP milik user yang login
+        if (!$detail->skpTahunan || $detail->skpTahunan->user_id !== $asn->id) {
+            abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
         }
 
-        if (!$detail->canBeEdited()) {
+        // Check apakah bisa diedit (SKP belum disetujui)
+        if ($detail->skpTahunan->status !== 'DRAFT' && $detail->skpTahunan->status !== 'DITOLAK') {
             return redirect()
                 ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
-                ->with('error', 'Butir Kinerja tidak dapat diedit (SKP sudah disetujui)');
+                ->with('error', 'Butir Kinerja tidak dapat diedit karena SKP sudah ' . strtolower($detail->skpTahunan->status));
         }
 
         // Get active Indikator Kinerja
-        // Filter by ASN's unit kerja (if exists, otherwise show all)
         $indikatorList = IndikatorKinerja::aktif()
             ->with('sasaranKegiatan')
             ->when($asn->unit_kerja_id, function($query) use ($asn) {
                 $query->where(function($q) use ($asn) {
                     $q->where('unit_kerja_id', $asn->unit_kerja_id)
-                      ->orWhereNull('unit_kerja_id'); // Allow global indikator
+                      ->orWhereNull('unit_kerja_id');
                 });
             })
             ->get();
@@ -171,17 +172,19 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
+        // Eager load skpTahunan relation
         $detail = SkpTahunanDetail::with('skpTahunan')->findOrFail($id);
 
-        // Security check
-        if ($detail->skpTahunan->user_id !== $asn->id) {
-            abort(403, 'Unauthorized');
+        // Security check: pastikan SKP milik user yang login
+        if (!$detail->skpTahunan || $detail->skpTahunan->user_id !== $asn->id) {
+            abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
         }
 
-        if (!$detail->canBeEdited()) {
+        // Check apakah bisa diedit (SKP belum disetujui)
+        if ($detail->skpTahunan->status !== 'DRAFT' && $detail->skpTahunan->status !== 'DITOLAK') {
             return redirect()
                 ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
-                ->with('error', 'Butir Kinerja tidak dapat diedit (SKP sudah disetujui)');
+                ->with('error', 'Butir Kinerja tidak dapat diedit karena SKP sudah ' . strtolower($detail->skpTahunan->status));
         }
 
         $validated = $request->validate([
@@ -205,17 +208,19 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
+        // Eager load skpTahunan relation
         $detail = SkpTahunanDetail::with('skpTahunan')->findOrFail($id);
 
-        // Security check
-        if ($detail->skpTahunan->user_id !== $asn->id) {
-            abort(403, 'Unauthorized');
+        // Security check: pastikan SKP milik user yang login
+        if (!$detail->skpTahunan || $detail->skpTahunan->user_id !== $asn->id) {
+            abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
         }
 
-        if (!$detail->canBeEdited()) {
+        // Check apakah bisa dihapus (SKP belum disetujui)
+        if ($detail->skpTahunan->status !== 'DRAFT' && $detail->skpTahunan->status !== 'DITOLAK') {
             return redirect()
                 ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
-                ->with('error', 'Butir Kinerja tidak dapat dihapus (SKP sudah disetujui)');
+                ->with('error', 'Butir Kinerja tidak dapat dihapus karena SKP sudah ' . strtolower($detail->skpTahunan->status));
         }
 
         $tahun = $detail->skpTahunan->tahun;
