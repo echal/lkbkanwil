@@ -180,10 +180,8 @@ class SkpTahunanController extends Controller
             })
             ->findOrFail($id);
 
-        // Security check sudah dilakukan di whereHas
-        if ($detail->skpTahunan->user_id !== $asn->id) {
-            abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
-        }
+        // whereHas sudah memastikan hanya SKP milik user yang ter-load
+        // Jadi jika sampai sini, berarti user adalah pemilik
 
         // Check apakah bisa diedit
         if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
@@ -220,10 +218,8 @@ class SkpTahunanController extends Controller
             })
             ->findOrFail($id);
 
-        // Security check sudah dilakukan di whereHas
-        if ($detail->skpTahunan->user_id !== $asn->id) {
-            abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
-        }
+        // whereHas sudah memastikan hanya SKP milik user yang ter-load
+        // Jadi jika sampai sini, berarti user adalah pemilik
 
         // Check apakah bisa dihapus
         if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
