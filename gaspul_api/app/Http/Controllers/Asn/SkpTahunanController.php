@@ -131,12 +131,27 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
+        // DEBUG: Log user info
+        \Log::info('SKP Edit - User Info', [
+            'user_id' => $asn->id,
+            'user_name' => $asn->name,
+            'detail_id' => $id,
+        ]);
+
         // Load detail dengan security check di query level
         $detail = SkpTahunanDetail::with(['skpTahunan', 'indikatorKinerja.sasaranKegiatan'])
             ->whereHas('skpTahunan', function($query) use ($asn) {
                 $query->where('user_id', $asn->id);
             })
             ->findOrFail($id);
+
+        // DEBUG: Log detail info
+        \Log::info('SKP Edit - Detail Loaded', [
+            'detail_id' => $detail->id,
+            'skp_tahunan_id' => $detail->skp_tahunan_id,
+            'skp_user_id' => $detail->skpTahunan->user_id,
+            'skp_status' => $detail->skpTahunan->status,
+        ]);
 
         // whereHas sudah memastikan hanya SKP milik user yang ter-load
         // Jadi jika sampai sini, berarti user adalah pemilik
