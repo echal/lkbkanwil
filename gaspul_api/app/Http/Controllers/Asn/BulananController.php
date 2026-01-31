@@ -217,15 +217,120 @@ class BulananController extends Controller
      */
     public function exportPdf(Request $request)
     {
-        // TODO: Implement PDF generation using DomPDF or similar
+        $asn = Auth::user();
         $tahun = $request->input('tahun', now()->year);
         $bulan = $request->input('bulan', now()->month);
 
-        return response()->json([
-            'message' => 'PDF export will be implemented',
-            'tahun' => $tahun,
-            'bulan' => $bulan,
+        // 1. GET SKP TAHUNAN
+        $skpTahunan = SkpTahunan::where('user_id', $asn->id)
+            ->where('tahun', $tahun)
+            ->first();
+
+        if (!$skpTahunan) {
+            return redirect()->back()->with('error', 'Data SKP Tahunan tidak ditemukan');
+        }
+
+        // 2. GET RENCANA AKSI BULANAN
+        $rencanaAksi = RencanaAksiBulanan::whereHas('skpTahunanDetail', function($query) use ($skpTahunan) {
+                $query->where('skp_tahunan_id', $skpTahunan->id);
+            })
+            ->with(['skpTahunanDetail.indikatorKinerja'])
+            ->where('bulan', $bulan)
+            ->where('tahun', $tahun)
+            ->where('status', '!=', 'BELUM_DIISI')
+            ->get();
+
+        // 3. GET PROGRES HARIAN
+        $progresHarian = ProgresHarian::where('user_id', $asn->id)
+            ->whereYear('tanggal', $tahun)
+            ->whereMonth('tanggal', $bulan)
+            ->orderBy('tanggal', 'asc')
+            ->get();
+
+        // 4. BUILD REKAP PER HARI (untuk tabel)
+        $rekapPerHari = [];
+        $startDate = Carbon::create($tahun, $bulan, 1);
+        $endDate = $startDate->copy()->endOfMonth();
+
+        for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
+            $dateString = $date->format('Y-m-d');
+            $progresHariIni = $progresHarian->where('tanggal', $dateString);
+
+            $totalMenit = $progresHariIni->sum('durasi_menit');
+            $totalJam = $totalMenit / 60;
+            $countKh = $progresHariIni->where('tipe_progres', 'KINERJA_HARIAN')->count();
+            $countTla = $progresHariIni->where('tipe_progres', 'TUGAS_ATASAN')->count();
+
+            // Determine status
+            $status = 'EMPTY';
+            if ($progresHariIni->count() > 0) {
+                $hasBukti = $progresHariIni->where('status_bukti', 'ADA')->count() > 0;
+
+                if ($totalJam >= 7.5 && $hasBukti) {
+                    $status = 'GREEN';
+                } elseif ($totalJam < 7.5 && $hasBukti) {
+                    $status = 'YELLOW';
+                } else {
+                    $status = 'RED';
+                }
+            }
+
+            $rekapPerHari[] = [
+                'tanggal' => $date->format('d'),
+                'hari' => substr($date->translatedFormat('l'), 0, 3),
+                'total_jam' => $totalJam > 0 ? number_format($totalJam, 1) : '-',
+                'count_kh' => $countKh > 0 ? $countKh : '-',
+                'count_tla' => $countTla > 0 ? $countTla : '-',
+                'status' => $status,
+            ];
+        }
+
+        // 5. BUILD SUMMARY
+        $totalHariDalamBulan = $endDate->day;
+        $hariKerja = $progresHarian->unique('tanggal')->count();
+        $hariKosong = $totalHariDalamBulan - $hariKerja;
+
+        $hariGreen = collect($rekapPerHari)->where('status', 'GREEN')->count();
+        $hariYellow = collect($rekapPerHari)->where('status', 'YELLOW')->count();
+        $hariRed = collect($rekapPerHari)->where('status', 'RED')->count();
+
+        $totalKh = $progresHarian->where('tipe_progres', 'KINERJA_HARIAN')->count();
+        $totalTla = $progresHarian->where('tipe_progres', 'TUGAS_ATASAN')->count();
+        $totalDurasiMenit = $progresHarian->sum('durasi_menit');
+        $totalJamKerja = floor($totalDurasiMenit / 60);
+        $sisaMenit = $totalDurasiMenit % 60;
+
+        $avgJamPerHari = $hariKerja > 0 ? ($totalDurasiMenit / 60) / $hariKerja : 0;
+
+        $summary = [
+            'total_hari' => $totalHariDalamBulan,
+            'hari_kerja' => $hariKerja,
+            'hari_kosong' => $hariKosong,
+            'hari_green' => $hariGreen,
+            'hari_yellow' => $hariYellow,
+            'hari_red' => $hariRed,
+            'total_kh' => $totalKh,
+            'total_tla' => $totalTla,
+            'total_jam' => $totalJamKerja . ' jam ' . $sisaMenit . ' menit',
+            'avg_jam_per_hari' => $avgJamPerHari,
+        ];
+
+        // 6. GENERATE PDF
+        $periode = $this->getNamaBulan($bulan) . ' ' . $tahun;
+        $tanggalCetak = Carbon::now()->locale('id')->isoFormat('D MMMM Y, HH:mm') . ' WIB';
+
+        $pdf = \PDF::loadView('asn.laporan.pdf.bulanan', [
+            'asn' => $asn,
+            'periode' => $periode,
+            'rencanaAksi' => $rencanaAksi,
+            'rekapPerHari' => $rekapPerHari,
+            'summary' => $summary,
+            'tanggal_cetak' => $tanggalCetak,
         ]);
+
+        $fileName = 'Laporan_Bulanan_' . $asn->name . '_' . $bulan . '_' . $tahun . '.pdf';
+
+        return $pdf->download($fileName);
     }
 
     /**
