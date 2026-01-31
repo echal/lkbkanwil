@@ -11,10 +11,46 @@ use Illuminate\Validation\Rule;
 
 class PegawaiController extends Controller
 {
-    public function index()
+    /**
+     * Display a listing of pegawai with filter & pagination
+     *
+     * @param Request $request
+     * @return \Illuminate\View\View
+     */
+    public function index(Request $request)
     {
-        $pegawai = User::with('unitKerja')->latest()->get();
-        return view('admin.pegawai.index', compact('pegawai'));
+        // Query builder dengan eager loading
+        $query = User::with('unitKerja');
+
+        // Filter berdasarkan NIP (pencarian partial)
+        $query->when($request->filled('nip'), function ($q) use ($request) {
+            $q->where('nip', 'like', '%' . $request->nip . '%');
+        });
+
+        // Filter berdasarkan Unit Kerja
+        $query->when($request->filled('unit_kerja_id'), function ($q) use ($request) {
+            $q->where('unit_kerja_id', $request->unit_kerja_id);
+        });
+
+        // Filter berdasarkan Role (opsional)
+        $query->when($request->filled('role'), function ($q) use ($request) {
+            $q->where('role', $request->role);
+        });
+
+        // Filter berdasarkan Status (opsional)
+        $query->when($request->filled('status'), function ($q) use ($request) {
+            $q->where('status_pegawai', $request->status);
+        });
+
+        // Sorting & Pagination
+        $pegawai = $query->latest()->paginate(15)->withQueryString();
+
+        // Get dropdown data untuk filter
+        $unitKerjaList = UnitKerja::aktif()
+            ->orderBy('nama_unit')
+            ->get(['id', 'nama_unit']);
+
+        return view('admin.pegawai.index', compact('pegawai', 'unitKerjaList'));
     }
 
     public function create()
