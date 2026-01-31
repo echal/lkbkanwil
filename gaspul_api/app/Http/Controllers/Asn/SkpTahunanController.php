@@ -131,17 +131,15 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
-        // Load detail dengan JOIN untuk security check yang lebih efisien
+        // Load detail dengan security check di query level
         $detail = SkpTahunanDetail::with(['skpTahunan', 'indikatorKinerja.sasaranKegiatan'])
             ->whereHas('skpTahunan', function($query) use ($asn) {
                 $query->where('user_id', $asn->id);
             })
             ->findOrFail($id);
 
-        // Security check sudah dilakukan di whereHas, tapi double check
-        if ($detail->skpTahunan->user_id !== $asn->id) {
-            abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
-        }
+        // whereHas sudah memastikan hanya SKP milik user yang ter-load
+        // Jadi jika sampai sini, berarti user adalah pemilik
 
         // Check apakah bisa diedit (SKP belum disetujui)
         if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
