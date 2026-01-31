@@ -126,42 +126,19 @@ class SkpTahunanController extends Controller
 
     /**
      * Show form to edit butir kinerja
+     *
+     * SECURITY: Menggunakan Laravel Policy + Route Model Binding
      */
-    public function edit($id)
+    public function edit(SkpTahunanDetail $detail)
     {
-        $asn = Auth::user();
+        $asn = auth()->user();
 
-        // DEBUG: Log user info
-        \Log::info('SKP Edit - User Info', [
-            'user_id' => $asn->id,
-            'user_name' => $asn->name,
-            'detail_id' => $id,
-        ]);
+        // Load relations yang dibutuhkan
+        $detail->load(['skpTahunan', 'indikatorKinerja.sasaranKegiatan']);
 
-        // Load detail dengan security check di query level
-        $detail = SkpTahunanDetail::with(['skpTahunan', 'indikatorKinerja.sasaranKegiatan'])
-            ->whereHas('skpTahunan', function($query) use ($asn) {
-                $query->where('user_id', $asn->id);
-            })
-            ->findOrFail($id);
-
-        // DEBUG: Log detail info
-        \Log::info('SKP Edit - Detail Loaded', [
-            'detail_id' => $detail->id,
-            'skp_tahunan_id' => $detail->skp_tahunan_id,
-            'skp_user_id' => $detail->skpTahunan->user_id,
-            'skp_status' => $detail->skpTahunan->status,
-        ]);
-
-        // whereHas sudah memastikan hanya SKP milik user yang ter-load
-        // Jadi jika sampai sini, berarti user adalah pemilik
-
-        // Check apakah bisa diedit (SKP belum disetujui)
-        if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
-            return redirect()
-                ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
-                ->with('error', 'Butir Kinerja tidak dapat diedit karena SKP sudah ' . strtolower($detail->skpTahunan->status));
-        }
+        // AUTHORIZATION menggunakan Policy (Laravel Best Practice)
+        // Policy akan handle: ownership check + status check
+        $this->authorize('update', $detail);
 
         // Get active Indikator Kinerja
         $indikatorList = IndikatorKinerja::aktif()
@@ -183,27 +160,16 @@ class SkpTahunanController extends Controller
 
     /**
      * Update butir kinerja
+     *
+     * SECURITY: Menggunakan Laravel Policy + Route Model Binding
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, SkpTahunanDetail $detail)
     {
-        $asn = Auth::user();
+        // Load relation
+        $detail->load('skpTahunan');
 
-        // Load detail dengan WHERE HAS untuk security
-        $detail = SkpTahunanDetail::with('skpTahunan')
-            ->whereHas('skpTahunan', function($query) use ($asn) {
-                $query->where('user_id', $asn->id);
-            })
-            ->findOrFail($id);
-
-        // whereHas sudah memastikan hanya SKP milik user yang ter-load
-        // Jadi jika sampai sini, berarti user adalah pemilik
-
-        // Check apakah bisa diedit
-        if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
-            return redirect()
-                ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
-                ->with('error', 'Butir Kinerja tidak dapat diedit karena SKP sudah ' . strtolower($detail->skpTahunan->status));
-        }
+        // AUTHORIZATION menggunakan Policy
+        $this->authorize('update', $detail);
 
         $validated = $request->validate([
             'indikator_kinerja_id' => 'required|exists:indikator_kinerja,id',
@@ -221,27 +187,16 @@ class SkpTahunanController extends Controller
 
     /**
      * Delete butir kinerja
+     *
+     * SECURITY: Menggunakan Laravel Policy + Route Model Binding
      */
-    public function destroy($id)
+    public function destroy(SkpTahunanDetail $detail)
     {
-        $asn = Auth::user();
+        // Load relation
+        $detail->load('skpTahunan');
 
-        // Load detail dengan WHERE HAS untuk security
-        $detail = SkpTahunanDetail::with('skpTahunan')
-            ->whereHas('skpTahunan', function($query) use ($asn) {
-                $query->where('user_id', $asn->id);
-            })
-            ->findOrFail($id);
-
-        // whereHas sudah memastikan hanya SKP milik user yang ter-load
-        // Jadi jika sampai sini, berarti user adalah pemilik
-
-        // Check apakah bisa dihapus
-        if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
-            return redirect()
-                ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
-                ->with('error', 'Butir Kinerja tidak dapat dihapus karena SKP sudah ' . strtolower($detail->skpTahunan->status));
-        }
+        // AUTHORIZATION menggunakan Policy
+        $this->authorize('delete', $detail);
 
         $tahun = $detail->skpTahunan->tahun;
         $detail->delete();

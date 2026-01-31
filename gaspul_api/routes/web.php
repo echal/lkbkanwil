@@ -49,9 +49,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/skp-tahunan', [SkpTahunanController::class, 'index'])->name('skp-tahunan.index');
         Route::get('/skp-tahunan/create', [SkpTahunanController::class, 'create'])->name('skp-tahunan.create');
         Route::post('/skp-tahunan/store', [SkpTahunanController::class, 'store'])->name('skp-tahunan.store');
-        Route::get('/skp-tahunan/edit/{id}', [SkpTahunanController::class, 'edit'])->name('skp-tahunan.edit');
-        Route::put('/skp-tahunan/update/{id}', [SkpTahunanController::class, 'update'])->name('skp-tahunan.update');
-        Route::delete('/skp-tahunan/destroy/{id}', [SkpTahunanController::class, 'destroy'])->name('skp-tahunan.destroy');
+        // Route Model Binding untuk Security & Clean Code
+        Route::get('/skp-tahunan/edit/{detail}', [SkpTahunanController::class, 'edit'])->name('skp-tahunan.edit');
+        Route::put('/skp-tahunan/update/{detail}', [SkpTahunanController::class, 'update'])->name('skp-tahunan.update');
+        Route::delete('/skp-tahunan/destroy/{detail}', [SkpTahunanController::class, 'destroy'])->name('skp-tahunan.destroy');
         Route::post('/skp-tahunan/submit/{id}', [SkpTahunanController::class, 'submit'])->name('skp-tahunan.submit');
 
         // Kinerja Harian
