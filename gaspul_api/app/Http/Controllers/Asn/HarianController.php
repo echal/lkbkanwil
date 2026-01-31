@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Asn;
 use App\Http\Controllers\Controller;
 use App\Models\RencanaAksiBulanan;
 use App\Models\ProgresHarian;
+use App\Helpers\HolidayHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -40,13 +41,13 @@ class HarianController extends Controller
     }
 
     /**
-     * Build calendar data for entire month
+     * Build calendar data for entire month dengan integrasi hari libur
      */
     private function buildCalendarData($userId, $month, $year)
     {
-        $data = [];
+        $calendar = [];
 
-        // Get all progres harian for this month from database
+        // Get all progres harian untuk bulan ini
         $progresHarianList = ProgresHarian::where('user_id', $userId)
             ->whereYear('tanggal', $year)
             ->whereMonth('tanggal', $month)
@@ -55,12 +56,39 @@ class HarianController extends Controller
                 return $item->tanggal->format('Y-m-d');
             });
 
-        // Generate dates for the month
-        $startDate = Carbon::create($year, $month, 1);
+        // Get all rencana aksi bulanan untuk bulan ini
+        $rencanaAksiList = RencanaAksiBulanan::whereHas('skpTahunanDetail', function($query) use ($userId) {
+                $query->whereHas('skpTahunan', function($q) use ($userId) {
+                    $q->where('user_id', $userId);
+                });
+            })
+            ->where('bulan', $month)
+            ->where('tahun', $year)
+            ->where('status', '!=', 'BELUM_DIISI')
+            ->get();
+
+        // Generate calendar untuk bulan ini (Senin sampai Minggu)
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
 
-        for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
-            $dateStr = $date->format('Y-m-d');
+        // Mulai dari Senin minggu pertama
+        $startOfCalendar = $startDate->copy()->startOfWeek(Carbon::MONDAY);
+        // Akhir di Minggu minggu terakhir
+        $endOfCalendar = $endDate->copy()->endOfWeek(Carbon::SUNDAY);
+
+        $currentDate = $startOfCalendar->copy();
+
+        while ($currentDate->lte($endOfCalendar)) {
+            $dateStr = $currentDate->format('Y-m-d');
+            $isCurrentMonth = $currentDate->month == $month;
+
+            // Data progres harian
+            $hasLkh = false;
+            $hasRhk = $rencanaAksiList->count() > 0;
+            $totalMenit = 0;
+            $hasEvidence = false;
+            $countKh = 0;
+            $countTla = 0;
 
             if (isset($progresHarianList[$dateStr])) {
                 $entries = $progresHarianList[$dateStr];
@@ -68,39 +96,53 @@ class HarianController extends Controller
                 $hasEvidence = $entries->where('status_bukti', 'SUDAH_ADA')->count() > 0;
                 $countKh = $entries->where('tipe_progres', 'KINERJA_HARIAN')->count();
                 $countTla = $entries->where('tipe_progres', 'TUGAS_ATASAN')->count();
-
-                // Status logic: RED (no evidence), YELLOW (< 450 min with evidence), GREEN (>= 450 min + evidence)
-                if ($totalMenit > 0) {
-                    if (!$hasEvidence) {
-                        $status = 'red';
-                    } elseif ($totalMenit < 450) {
-                        $status = 'yellow';
-                    } else {
-                        $status = 'green';
-                    }
-                } else {
-                    $status = 'empty';
-                }
-
-                $data[$dateStr] = [
-                    'status' => $status,
-                    'total_menit' => $totalMenit,
-                    'has_evidence' => $hasEvidence,
-                    'count_kh' => $countKh,
-                    'count_tla' => $countTla,
-                ];
-            } else {
-                $data[$dateStr] = [
-                    'status' => 'empty',
-                    'total_menit' => 0,
-                    'has_evidence' => false,
-                    'count_kh' => 0,
-                    'count_tla' => 0,
-                ];
+                $hasLkh = $entries->count() > 0;
             }
+
+            // Tentukan badge menggunakan HolidayHelper
+            $badge = HolidayHelper::getDateBadge($currentDate, $hasLkh, $hasRhk);
+
+            // Tentukan apakah bisa input
+            $canInput = HolidayHelper::canInputData($currentDate) && $isCurrentMonth;
+
+            // Status untuk warna kalender (backward compatibility)
+            $status = 'empty';
+            if ($hasLkh && $totalMenit > 0) {
+                if (!$hasEvidence) {
+                    $status = 'red';
+                } elseif ($totalMenit < 450) {
+                    $status = 'yellow';
+                } else {
+                    $status = 'green';
+                }
+            }
+
+            $calendar[$dateStr] = [
+                'date' => $currentDate->copy(),
+                'day' => $currentDate->day,
+                'day_name' => $currentDate->translatedFormat('D'),
+                'is_current_month' => $isCurrentMonth,
+                'is_today' => $currentDate->isToday(),
+                'is_weekend' => $currentDate->isWeekend(),
+                'is_holiday' => HolidayHelper::isNationalHoliday($currentDate),
+                'holiday_name' => HolidayHelper::getHolidayName($currentDate),
+                'is_working_day' => HolidayHelper::isWorkingDay($currentDate),
+                'can_input' => $canInput,
+                'has_lkh' => $hasLkh,
+                'has_rhk' => $hasRhk,
+                'total_menit' => $totalMenit,
+                'total_hours' => floor($totalMenit / 60),
+                'has_evidence' => $hasEvidence,
+                'count_kh' => $countKh,
+                'count_tla' => $countTla,
+                'status' => $status,
+                'badge' => $badge,
+            ];
+
+            $currentDate->addDay();
         }
 
-        return $data;
+        return $calendar;
     }
 
     /**
@@ -235,6 +277,25 @@ class HarianController extends Controller
         $asn = Auth::user();
         $tanggal = $validated['tanggal'] ?? now()->format('Y-m-d');
 
+        // VALIDASI: Tidak bisa input di weekend atau hari libur
+        if (!HolidayHelper::canInputData($tanggal)) {
+            $carbonDate = Carbon::parse($tanggal);
+            $reason = 'Tidak dapat menginput data pada ';
+
+            if ($carbonDate->isWeekend()) {
+                $reason .= 'akhir pekan (Sabtu/Minggu)';
+            } elseif (HolidayHelper::isNationalHoliday($tanggal)) {
+                $holidayName = HolidayHelper::getHolidayName($tanggal);
+                $reason .= 'hari libur nasional (' . $holidayName . ')';
+            } elseif ($carbonDate->isFuture()) {
+                $reason .= 'tanggal masa depan';
+            }
+
+            return redirect()->back()
+                ->withInput()
+                ->with('error', $reason . '. Silakan pilih hari kerja (Senin-Jumat).');
+        }
+
         // Calculate duration
         $jamMulai = Carbon::parse($tanggal . ' ' . $validated['jam_mulai']);
         $jamSelesai = Carbon::parse($tanggal . ' ' . $validated['jam_selesai']);
@@ -317,6 +378,25 @@ class HarianController extends Controller
 
         $asn = Auth::user();
         $tanggal = $validated['tanggal'] ?? now()->format('Y-m-d');
+
+        // VALIDASI: Tidak bisa input di weekend atau hari libur
+        if (!HolidayHelper::canInputData($tanggal)) {
+            $carbonDate = Carbon::parse($tanggal);
+            $reason = 'Tidak dapat menginput data pada ';
+
+            if ($carbonDate->isWeekend()) {
+                $reason .= 'akhir pekan (Sabtu/Minggu)';
+            } elseif (HolidayHelper::isNationalHoliday($tanggal)) {
+                $holidayName = HolidayHelper::getHolidayName($tanggal);
+                $reason .= 'hari libur nasional (' . $holidayName . ')';
+            } elseif ($carbonDate->isFuture()) {
+                $reason .= 'tanggal masa depan';
+            }
+
+            return redirect()->back()
+                ->withInput()
+                ->with('error', $reason . '. Silakan pilih hari kerja (Senin-Jumat).');
+        }
 
         // Calculate duration
         $jamMulai = Carbon::parse($tanggal . ' ' . $validated['jam_mulai']);

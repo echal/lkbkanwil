@@ -38,51 +38,28 @@
         </a>
     </div>
 
-    <!-- Keterangan Warna & Status Kalender -->
+    <!-- Keterangan Warna -->
     <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-        <h3 class="text-sm font-semibold text-gray-700 mb-4">Keterangan Status Kalender:</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded bg-blue-600 flex items-center justify-center">
-                    <span class="text-white text-xs font-bold">LKH</span>
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Keterangan Warna:</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 bg-red-100 rounded flex items-center justify-center">
+                    <span class="text-red-600 text-xs font-bold">X</span>
                 </div>
-                <span class="text-sm text-gray-700">LKH Terisi</span>
+                <span class="text-sm text-gray-700">Belum ada bukti dukung</span>
             </div>
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded bg-purple-600 flex items-center justify-center">
-                    <span class="text-white text-xs font-bold">RHK</span>
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 bg-yellow-100 rounded flex items-center justify-center">
+                    <span class="text-yellow-600 text-xs font-bold">!</span>
                 </div>
-                <span class="text-sm text-gray-700">RHK Ada</span>
+                <span class="text-sm text-gray-700">Ada progres, belum 7.5 jam</span>
             </div>
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded bg-green-50 border-2 border-green-200 flex items-center justify-center">
-                    <span class="text-green-700 text-xs font-bold">✓</span>
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 bg-green-100 rounded flex items-center justify-center">
+                    <span class="text-green-600 text-xs font-bold">✓</span>
                 </div>
-                <span class="text-sm text-gray-700">Hari Kerja</span>
+                <span class="text-sm text-gray-700">Sudah 7.5 jam & ada bukti</span>
             </div>
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
-                    <span class="text-gray-500 text-xs">W</span>
-                </div>
-                <span class="text-sm text-gray-700">Weekend</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded bg-red-100 border-2 border-red-300 flex items-center justify-center">
-                    <span class="text-red-700 text-xs font-bold">L</span>
-                </div>
-                <span class="text-sm text-gray-700">Libur Nasional</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <svg class="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                </svg>
-                <span class="text-sm text-gray-700">Tidak Bisa Input</span>
-            </div>
-        </div>
-        <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p class="text-xs text-yellow-800">
-                <strong>Catatan:</strong> Input LKH dan RHK hanya bisa dilakukan pada hari kerja (Senin-Jumat) dan tidak bisa pada weekend atau hari libur nasional.
-            </p>
         </div>
     </div>
 
@@ -110,8 +87,83 @@
                     </button>
                 </div>
 
-                <!-- Calendar Grid (Menggunakan Partial Baru) -->
-                @include('asn.harian.calendar')
+                <!-- Calendar Grid -->
+                <div class="grid grid-cols-7 gap-2">
+                    <!-- Day Headers -->
+                    @foreach(['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'] as $day)
+                    <div class="text-center text-sm font-semibold text-gray-600 py-2">{{ $day }}</div>
+                    @endforeach
+
+                    <!-- Calendar Days -->
+                    @php
+                        $startDate = \Carbon\Carbon::create($year, $month, 1);
+                        $endDate = $startDate->copy()->endOfMonth();
+                        $startDayOfWeek = $startDate->dayOfWeek;
+
+                        // Adjust for Sunday (Carbon uses 0=Sunday, we want 0=Monday)
+                        $startDayOfWeek = $startDayOfWeek == 0 ? 6 : $startDayOfWeek - 1;
+                    @endphp
+
+                    <!-- Empty cells before first day -->
+                    @for($i = 0; $i < $startDayOfWeek; $i++)
+                        <div></div>
+                    @endfor
+
+                    <!-- Days of month -->
+                    @for($day = 1; $day <= $endDate->day; $day++)
+                        @php
+                            $currentDate = \Carbon\Carbon::create($year, $month, $day);
+                            $dateStr = $currentDate->format('Y-m-d');
+                            $dayData = $calendarData[$dateStr] ?? ['status' => 'empty'];
+                            $status = $dayData['status'];
+                            $isToday = $dateStr === now()->format('Y-m-d');
+                            $isSelected = $dateStr === $selectedDate;
+
+                            // Determine background color
+                            if ($status === 'red') {
+                                $bgClass = 'bg-red-50 border-red-300';
+                                $textClass = 'text-red-800';
+                            } elseif ($status === 'yellow') {
+                                $bgClass = 'bg-yellow-50 border-yellow-300';
+                                $textClass = 'text-yellow-800';
+                            } elseif ($status === 'green') {
+                                $bgClass = 'bg-green-50 border-green-300';
+                                $textClass = 'text-green-800';
+                            } else {
+                                $bgClass = 'bg-white border-gray-200';
+                                $textClass = 'text-gray-700';
+                            }
+
+                            if ($isSelected) {
+                                $bgClass = 'bg-blue-100 border-blue-500 ring-2 ring-blue-500';
+                                $textClass = 'text-blue-900';
+                            }
+                        @endphp
+                        <button
+                            @click="selectDate('{{ $dateStr }}')"
+                            class="relative aspect-square border-2 rounded-lg transition hover:shadow-md {{ $bgClass }} {{ $isToday ? 'ring-2 ring-blue-400' : '' }}"
+                        >
+                            <div class="flex flex-col items-center justify-center h-full p-1">
+                                <span class="text-lg font-bold {{ $textClass }}">{{ $day }}</span>
+                                @if($dayData['status'] !== 'empty')
+                                    <div class="text-xs mt-1 {{ $textClass }}">
+                                        {{ floor($dayData['total_menit'] / 60) }}j {{ $dayData['total_menit'] % 60 }}m
+                                    </div>
+                                @endif
+                            </div>
+                            @if($dayData['status'] !== 'empty')
+                                <div class="absolute bottom-1 right-1">
+                                    @if($dayData['count_kh'] > 0)
+                                        <span class="inline-block w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                                    @endif
+                                    @if($dayData['count_tla'] > 0)
+                                        <span class="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                                    @endif
+                                </div>
+                            @endif
+                        </button>
+                    @endfor
+                </div>
             </div>
         </div>
 
@@ -268,118 +320,4 @@
     {{ session('error') }}
 </div>
 @endif
-
-@push('scripts')
-<script>
-// Validasi Weekend & Hari Libur untuk Form Input
-document.addEventListener('DOMContentLoaded', function() {
-    // Data hari libur dari PHP
-    const holidays = @json(\App\Helpers\HolidayHelper::getNationalHolidays2026());
-
-    // Function untuk check apakah tanggal bisa input
-    function canInputDate(dateString) {
-        const date = new Date(dateString);
-        const dayOfWeek = date.getDay(); // 0 = Minggu, 6 = Sabtu
-
-        // Check weekend
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-            return {
-                canInput: false,
-                reason: 'Weekend (Sabtu/Minggu) - Tidak dapat input'
-            };
-        }
-
-        // Check hari libur
-        if (holidays[dateString]) {
-            return {
-                canInput: false,
-                reason: `Hari Libur: ${holidays[dateString]}`
-            };
-        }
-
-        // Check tanggal masa depan
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (date > today) {
-            return {
-                canInput: false,
-                reason: 'Tanggal masa depan - Belum dapat input'
-            };
-        }
-
-        return { canInput: true, reason: null };
-    }
-
-    // Monitor perubahan tanggal di form
-    const dateInputs = document.querySelectorAll('input[type="date"][name="tanggal"]');
-
-    dateInputs.forEach(input => {
-        // Disable weekend & holiday saat load
-        validateDateInput(input);
-
-        // Validate saat berubah
-        input.addEventListener('change', function() {
-            validateDateInput(this);
-        });
-    });
-
-    function validateDateInput(inputElement) {
-        const selectedDate = inputElement.value;
-
-        if (!selectedDate) return;
-
-        const validation = canInputDate(selectedDate);
-        const form = inputElement.closest('form');
-        const submitButton = form ? form.querySelector('button[type="submit"]') : null;
-        const warningDiv = form ? form.querySelector('.date-warning') : null;
-
-        if (!validation.canInput) {
-            // Disable submit button
-            if (submitButton) {
-                submitButton.disabled = true;
-                submitButton.classList.add('opacity-50', 'cursor-not-allowed');
-                submitButton.title = validation.reason;
-            }
-
-            // Show warning
-            if (warningDiv) {
-                warningDiv.textContent = validation.reason;
-                warningDiv.classList.remove('hidden');
-            } else if (form) {
-                // Create warning div if not exists
-                const newWarning = document.createElement('div');
-                newWarning.className = 'date-warning bg-yellow-50 border border-yellow-300 text-yellow-800 px-4 py-2 rounded text-sm mt-2';
-                newWarning.textContent = validation.reason;
-                inputElement.parentElement.appendChild(newWarning);
-            }
-        } else {
-            // Enable submit button
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                submitButton.title = '';
-            }
-
-            // Hide warning
-            if (warningDiv) {
-                warningDiv.classList.add('hidden');
-            }
-        }
-    }
-
-    // Set min/max date untuk input tanggal
-    dateInputs.forEach(input => {
-        // Max date = hari ini
-        const today = new Date().toISOString().split('T')[0];
-        input.setAttribute('max', today);
-
-        // Min date = 3 bulan yang lalu (opsional)
-        const threeMonthsAgo = new Date();
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        const minDate = threeMonthsAgo.toISOString().split('T')[0];
-        input.setAttribute('min', minDate);
-    });
-});
-</script>
-@endpush
 @endsection
