@@ -131,17 +131,20 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
-        // Eager load skpTahunan relation untuk security check
+        // Load detail dengan JOIN untuk security check yang lebih efisien
         $detail = SkpTahunanDetail::with(['skpTahunan', 'indikatorKinerja.sasaranKegiatan'])
+            ->whereHas('skpTahunan', function($query) use ($asn) {
+                $query->where('user_id', $asn->id);
+            })
             ->findOrFail($id);
 
-        // Security check: pastikan SKP milik user yang login
-        if (!$detail->skpTahunan || $detail->skpTahunan->user_id !== $asn->id) {
+        // Security check sudah dilakukan di whereHas, tapi double check
+        if ($detail->skpTahunan->user_id !== $asn->id) {
             abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
         }
 
         // Check apakah bisa diedit (SKP belum disetujui)
-        if ($detail->skpTahunan->status !== 'DRAFT' && $detail->skpTahunan->status !== 'DITOLAK') {
+        if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
             return redirect()
                 ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
                 ->with('error', 'Butir Kinerja tidak dapat diedit karena SKP sudah ' . strtolower($detail->skpTahunan->status));
@@ -172,16 +175,20 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
-        // Eager load skpTahunan relation
-        $detail = SkpTahunanDetail::with('skpTahunan')->findOrFail($id);
+        // Load detail dengan WHERE HAS untuk security
+        $detail = SkpTahunanDetail::with('skpTahunan')
+            ->whereHas('skpTahunan', function($query) use ($asn) {
+                $query->where('user_id', $asn->id);
+            })
+            ->findOrFail($id);
 
-        // Security check: pastikan SKP milik user yang login
-        if (!$detail->skpTahunan || $detail->skpTahunan->user_id !== $asn->id) {
+        // Security check sudah dilakukan di whereHas
+        if ($detail->skpTahunan->user_id !== $asn->id) {
             abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
         }
 
-        // Check apakah bisa diedit (SKP belum disetujui)
-        if ($detail->skpTahunan->status !== 'DRAFT' && $detail->skpTahunan->status !== 'DITOLAK') {
+        // Check apakah bisa diedit
+        if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
             return redirect()
                 ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
                 ->with('error', 'Butir Kinerja tidak dapat diedit karena SKP sudah ' . strtolower($detail->skpTahunan->status));
@@ -208,16 +215,20 @@ class SkpTahunanController extends Controller
     {
         $asn = Auth::user();
 
-        // Eager load skpTahunan relation
-        $detail = SkpTahunanDetail::with('skpTahunan')->findOrFail($id);
+        // Load detail dengan WHERE HAS untuk security
+        $detail = SkpTahunanDetail::with('skpTahunan')
+            ->whereHas('skpTahunan', function($query) use ($asn) {
+                $query->where('user_id', $asn->id);
+            })
+            ->findOrFail($id);
 
-        // Security check: pastikan SKP milik user yang login
-        if (!$detail->skpTahunan || $detail->skpTahunan->user_id !== $asn->id) {
+        // Security check sudah dilakukan di whereHas
+        if ($detail->skpTahunan->user_id !== $asn->id) {
             abort(403, 'Akses ditolak. SKP ini bukan milik Anda.');
         }
 
-        // Check apakah bisa dihapus (SKP belum disetujui)
-        if ($detail->skpTahunan->status !== 'DRAFT' && $detail->skpTahunan->status !== 'DITOLAK') {
+        // Check apakah bisa dihapus
+        if (!in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK'])) {
             return redirect()
                 ->route('asn.skp-tahunan.index', ['tahun' => $detail->skpTahunan->tahun])
                 ->with('error', 'Butir Kinerja tidak dapat dihapus karena SKP sudah ' . strtolower($detail->skpTahunan->status));
