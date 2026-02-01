@@ -19,12 +19,28 @@ class ProfileController extends Controller
      */
     public function edit()
     {
-        $user = Auth::user();
-        $user->load('unitKerja');
+        try {
+            $user = Auth::user();
 
-        return view('profile.edit', [
-            'user' => $user,
-        ]);
+            // Try to load unitKerja relation if exists
+            if (method_exists($user, 'unitKerja')) {
+                $user->load('unitKerja');
+            }
+
+            return view('profile.edit', [
+                'user' => $user,
+            ]);
+        } catch (\Exception $e) {
+            // Log error for debugging
+            \Log::error('Profile Edit Error: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return redirect()
+                ->route('dashboard')
+                ->with('error', 'Terjadi kesalahan saat memuat halaman profil. Silakan hubungi administrator.');
+        }
     }
 
     /**
