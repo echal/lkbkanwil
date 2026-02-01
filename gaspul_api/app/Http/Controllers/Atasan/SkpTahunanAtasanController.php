@@ -80,6 +80,32 @@ class SkpTahunanAtasanController extends Controller
         // Get unit kerja list for filter
         $unitKerjaList = UnitKerja::where('status', 'AKTIF')->get();
 
+        // Count pending revision requests (REVISI_DIAJUKAN)
+        $pendingRevisionCount = SkpTahunan::where('status', 'REVISI_DIAJUKAN')
+            ->where('tahun', $tahun)
+            ->when($atasan->unit_kerja_id, function($q) use ($atasan) {
+                $q->whereHas('user', function($q2) use ($atasan) {
+                    $q2->where('unit_kerja_id', $atasan->unit_kerja_id);
+                });
+            })
+            ->whereHas('user', function($q) {
+                $q->where('role', 'ASN');
+            })
+            ->count();
+
+        // Count pending approval (DIAJUKAN)
+        $pendingApprovalCount = SkpTahunan::where('status', 'DIAJUKAN')
+            ->where('tahun', $tahun)
+            ->when($atasan->unit_kerja_id, function($q) use ($atasan) {
+                $q->whereHas('user', function($q2) use ($atasan) {
+                    $q2->where('unit_kerja_id', $atasan->unit_kerja_id);
+                });
+            })
+            ->whereHas('user', function($q) {
+                $q->where('role', 'ASN');
+            })
+            ->count();
+
         // Prepare data for view
         $skpData = $skpList->map(function($skp) {
             return [
@@ -106,6 +132,8 @@ class SkpTahunanAtasanController extends Controller
             'unitKerjaId' => $unitKerjaId,
             'searchAsn' => $searchAsn,
             'unitKerjaList' => $unitKerjaList,
+            'pendingRevisionCount' => $pendingRevisionCount,
+            'pendingApprovalCount' => $pendingApprovalCount,
         ]);
     }
 
@@ -225,5 +253,72 @@ class SkpTahunanAtasanController extends Controller
         return redirect()
             ->route('atasan.skp-tahunan.show', $id)
             ->with('success', 'SKP Tahunan ditolak. ASN akan memperbaiki.');
+    }
+
+    /**
+     * Setujui permintaan revisi SKP Tahunan
+     *
+     * BUSINESS RULES:
+     * - Hanya PIMPINAN yang bisa menyetujui
+     * - SKP harus berstatus REVISI_DIAJUKAN
+     * - Menggunakan Policy authorization
+     * - Status kembali ke DRAFT agar ASN bisa edit
+     * - RHK dan Kinerja Harian TIDAK terpengaruh
+     */
+    public function setujuiRevisi(Request $request, SkpTahunan $skpTahunan)
+    {
+        // AUTHORIZATION menggunakan Policy
+        $this->authorize('approveRevision', $skpTahunan);
+
+        $validated = $request->validate([
+            'catatan_revisi' => 'nullable|string|max:1000',
+        ], [
+            'catatan_revisi.max' => 'Catatan revisi maksimal 1000 karakter',
+        ]);
+
+        // Update status kembali ke DRAFT
+        $skpTahunan->update([
+            'status' => 'DRAFT',
+            'catatan_revisi' => $validated['catatan_revisi'] ?? null,
+            'revisi_disetujui_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('atasan.skp-tahunan.show', $skpTahunan->id)
+            ->with('success', 'Permintaan revisi DISETUJUI. ASN sekarang dapat mengedit SKP Tahunan.');
+    }
+
+    /**
+     * Tolak permintaan revisi SKP Tahunan
+     *
+     * BUSINESS RULES:
+     * - Hanya PIMPINAN yang bisa menolak
+     * - SKP harus berstatus REVISI_DIAJUKAN
+     * - Menggunakan Policy authorization
+     * - Status menjadi REVISI_DITOLAK
+     * - ASN tidak bisa edit SKP, harus ajukan revisi lagi jika perlu
+     */
+    public function tolakRevisi(Request $request, SkpTahunan $skpTahunan)
+    {
+        // AUTHORIZATION menggunakan Policy
+        $this->authorize('rejectRevision', $skpTahunan);
+
+        $validated = $request->validate([
+            'catatan_revisi' => 'required|string|min:10|max:1000',
+        ], [
+            'catatan_revisi.required' => 'Alasan penolakan revisi wajib diisi',
+            'catatan_revisi.min' => 'Alasan penolakan minimal 10 karakter',
+            'catatan_revisi.max' => 'Alasan penolakan maksimal 1000 karakter',
+        ]);
+
+        // Update status menjadi REVISI_DITOLAK
+        $skpTahunan->update([
+            'status' => 'REVISI_DITOLAK',
+            'catatan_revisi' => $validated['catatan_revisi'],
+        ]);
+
+        return redirect()
+            ->route('atasan.skp-tahunan.show', $skpTahunan->id)
+            ->with('warning', 'Permintaan revisi DITOLAK. Alasan telah dikirim ke ASN.');
     }
 }

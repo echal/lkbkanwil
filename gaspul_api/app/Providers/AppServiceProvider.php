@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
+use App\Models\SkpTahunan;
 use App\Models\SkpTahunanDetail;
+use App\Policies\SkpTahunanPolicy;
 use App\Policies\SkpTahunanDetailPolicy;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,7 +24,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Register Policy
+        // Register Policies
+        Gate::policy(SkpTahunan::class, SkpTahunanPolicy::class);
         Gate::policy(SkpTahunanDetail::class, SkpTahunanDetailPolicy::class);
     }
 }

@@ -49,11 +49,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/skp-tahunan', [SkpTahunanController::class, 'index'])->name('skp-tahunan.index');
         Route::get('/skp-tahunan/create', [SkpTahunanController::class, 'create'])->name('skp-tahunan.create');
         Route::post('/skp-tahunan/store', [SkpTahunanController::class, 'store'])->name('skp-tahunan.store');
-        // Route Model Binding untuk Security & Clean Code
+
+        // Route Model Binding: parameter {detail} akan auto-inject SkpTahunanDetail model
         Route::get('/skp-tahunan/edit/{detail}', [SkpTahunanController::class, 'edit'])->name('skp-tahunan.edit');
         Route::put('/skp-tahunan/update/{detail}', [SkpTahunanController::class, 'update'])->name('skp-tahunan.update');
         Route::delete('/skp-tahunan/destroy/{detail}', [SkpTahunanController::class, 'destroy'])->name('skp-tahunan.destroy');
         Route::post('/skp-tahunan/submit/{id}', [SkpTahunanController::class, 'submit'])->name('skp-tahunan.submit');
+
+        // Revision Management
+        Route::post('/skp-tahunan/{skpTahunan}/ajukan-revisi', [SkpTahunanController::class, 'ajukanRevisi'])->name('skp-tahunan.ajukan-revisi');
 
         // Kinerja Harian
         Route::get('/harian', [HarianController::class, 'index'])->name('harian.index');
@@ -94,6 +98,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/skp-tahunan/{id}', [SkpTahunanAtasanController::class, 'show'])->name('skp-tahunan.show');
         Route::post('/skp-tahunan/{id}/approve', [SkpTahunanAtasanController::class, 'approve'])->name('skp-tahunan.approve');
         Route::post('/skp-tahunan/{id}/reject', [SkpTahunanAtasanController::class, 'reject'])->name('skp-tahunan.reject');
+
+        // Revision Management (Route Model Binding)
+        Route::post('/skp-tahunan/{skpTahunan}/setujui-revisi', [SkpTahunanAtasanController::class, 'setujuiRevisi'])->name('skp-tahunan.setujui-revisi');
+        Route::post('/skp-tahunan/{skpTahunan}/tolak-revisi', [SkpTahunanAtasanController::class, 'tolakRevisi'])->name('skp-tahunan.tolak-revisi');
 
         // Approval/Persetujuan
         Route::get('/approval', [ApprovalController::class, 'index'])->name('approval.index');

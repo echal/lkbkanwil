@@ -133,12 +133,18 @@ class SkpTahunanController extends Controller
     {
         $asn = auth()->user();
 
-        // Load relations yang dibutuhkan
-        $detail->load(['skpTahunan', 'indikatorKinerja.sasaranKegiatan']);
+        // CRITICAL: Load relation BEFORE authorization check
+        // Policy needs skpTahunan relation to check ownership
+        if (!$detail->relationLoaded('skpTahunan')) {
+            $detail->load('skpTahunan');
+        }
 
         // AUTHORIZATION menggunakan Policy (Laravel Best Practice)
         // Policy akan handle: ownership check + status check
         $this->authorize('update', $detail);
+
+        // Load additional relations for form
+        $detail->load(['indikatorKinerja.sasaranKegiatan']);
 
         // Get active Indikator Kinerja
         $indikatorList = IndikatorKinerja::aktif()
@@ -165,8 +171,10 @@ class SkpTahunanController extends Controller
      */
     public function update(Request $request, SkpTahunanDetail $detail)
     {
-        // Load relation
-        $detail->load('skpTahunan');
+        // CRITICAL: Load relation BEFORE authorization check
+        if (!$detail->relationLoaded('skpTahunan')) {
+            $detail->load('skpTahunan');
+        }
 
         // AUTHORIZATION menggunakan Policy
         $this->authorize('update', $detail);
@@ -192,8 +200,10 @@ class SkpTahunanController extends Controller
      */
     public function destroy(SkpTahunanDetail $detail)
     {
-        // Load relation
-        $detail->load('skpTahunan');
+        // CRITICAL: Load relation BEFORE authorization check
+        if (!$detail->relationLoaded('skpTahunan')) {
+            $detail->load('skpTahunan');
+        }
 
         // AUTHORIZATION menggunakan Policy
         $this->authorize('delete', $detail);
@@ -226,6 +236,39 @@ class SkpTahunanController extends Controller
         return redirect()
             ->route('asn.skp-tahunan.index', ['tahun' => $skpTahunan->tahun])
             ->with('success', 'SKP Tahunan berhasil diajukan untuk persetujuan atasan');
+    }
+
+    /**
+     * Ajukan permintaan revisi SKP Tahunan yang sudah DISETUJUI
+     *
+     * BUSINESS RULES:
+     * - Hanya bisa diajukan jika status = 'DISETUJUI'
+     * - Menggunakan Policy authorization
+     * - RHK dan Kinerja Harian TIDAK terpengaruh
+     */
+    public function ajukanRevisi(Request $request, SkpTahunan $skpTahunan)
+    {
+        // AUTHORIZATION menggunakan Policy
+        $this->authorize('requestRevision', $skpTahunan);
+
+        $validated = $request->validate([
+            'alasan_revisi' => 'required|string|min:10|max:1000',
+        ], [
+            'alasan_revisi.required' => 'Alasan revisi wajib diisi',
+            'alasan_revisi.min' => 'Alasan revisi minimal 10 karakter',
+            'alasan_revisi.max' => 'Alasan revisi maksimal 1000 karakter',
+        ]);
+
+        // Update status dan catat alasan revisi
+        $skpTahunan->update([
+            'status' => 'REVISI_DIAJUKAN',
+            'alasan_revisi' => $validated['alasan_revisi'],
+            'revisi_diajukan_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('asn.skp-tahunan.index', ['tahun' => $skpTahunan->tahun])
+            ->with('success', 'Permintaan revisi SKP Tahunan berhasil diajukan. Menunggu persetujuan atasan.');
     }
 }
 

@@ -15,6 +15,11 @@ class SkpTahunanDetailPolicy
      */
     public function view(User $user, SkpTahunanDetail $detail): bool
     {
+        // Safety check: ensure relation is loaded
+        if (!$detail->skpTahunan) {
+            return false;
+        }
+
         return $detail->skpTahunan->user_id === $user->id;
     }
 
@@ -23,38 +28,19 @@ class SkpTahunanDetailPolicy
      */
     public function update(User $user, SkpTahunanDetail $detail): bool
     {
-        // DEBUG: Log authorization check
-        \Log::info('SkpTahunanDetailPolicy::update', [
-            'user_id' => $user->id,
-            'user_name' => $user->name,
-            'detail_id' => $detail->id,
-            'skp_tahunan_id' => $detail->skp_tahunan_id,
-            'skp_owner_id' => $detail->skpTahunan->user_id,
-            'skp_status' => $detail->skpTahunan->status,
-            'ownership_check' => $detail->skpTahunan->user_id === $user->id,
-            'status_check' => in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK']),
-        ]);
+        // Safety check: ensure relation is loaded
+        if (!$detail->skpTahunan) {
+            return false;
+        }
 
         // Must own the SKP
         if ($detail->skpTahunan->user_id !== $user->id) {
-            \Log::warning('SKP ownership check FAILED', [
-                'user_id' => $user->id,
-                'skp_owner_id' => $detail->skpTahunan->user_id,
-            ]);
             return false;
         }
 
         // Can only edit if status is DRAFT or DITOLAK
-        $canEdit = in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK']);
-
-        if (!$canEdit) {
-            \Log::warning('SKP status check FAILED', [
-                'status' => $detail->skpTahunan->status,
-                'allowed' => ['DRAFT', 'DITOLAK'],
-            ]);
-        }
-
-        return $canEdit;
+        // REVISI_DITOLAK TIDAK boleh edit (SKP tetap DISETUJUI)
+        return in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK']);
     }
 
     /**
@@ -62,12 +48,18 @@ class SkpTahunanDetailPolicy
      */
     public function delete(User $user, SkpTahunanDetail $detail): bool
     {
+        // Safety check: ensure relation is loaded
+        if (!$detail->skpTahunan) {
+            return false;
+        }
+
         // Must own the SKP
         if ($detail->skpTahunan->user_id !== $user->id) {
             return false;
         }
 
         // Can only delete if status is DRAFT or DITOLAK
+        // REVISI_DITOLAK TIDAK bisa dihapus (SKP tetap DISETUJUI)
         return in_array($detail->skpTahunan->status, ['DRAFT', 'DITOLAK']);
     }
 }

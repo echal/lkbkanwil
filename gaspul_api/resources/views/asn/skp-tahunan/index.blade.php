@@ -43,6 +43,10 @@
                     <span class="px-4 py-2 text-sm font-semibold rounded-full bg-green-100 text-green-800">Disetujui</span>
                 @elseif($skpTahunan->status === 'DITOLAK')
                     <span class="px-4 py-2 text-sm font-semibold rounded-full bg-red-100 text-red-800">Ditolak</span>
+                @elseif($skpTahunan->status === 'REVISI_DIAJUKAN')
+                    <span class="px-4 py-2 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">Revisi Diajukan</span>
+                @elseif($skpTahunan->status === 'REVISI_DITOLAK')
+                    <span class="px-4 py-2 text-sm font-semibold rounded-full bg-orange-100 text-orange-800">Revisi Ditolak</span>
                 @endif
             </div>
         </div>
@@ -56,6 +60,44 @@
                 <div>
                     <h4 class="text-sm font-semibold text-red-800 mb-1">Catatan Atasan:</h4>
                     <p class="text-sm text-red-700">{{ $skpTahunan->catatan_atasan }}</p>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        @if($skpTahunan->status === 'REVISI_DIAJUKAN')
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg mb-4">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-yellow-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <div class="flex-1">
+                    <h4 class="text-sm font-semibold text-yellow-800 mb-1">Permintaan Revisi Sedang Diproses</h4>
+                    <p class="text-sm text-yellow-700 mb-2">Menunggu persetujuan atasan untuk melakukan revisi SKP Tahunan</p>
+                    @if($skpTahunan->alasan_revisi)
+                    <div class="mt-2 p-2 bg-yellow-100 rounded">
+                        <p class="text-xs font-semibold text-yellow-800">Alasan Revisi:</p>
+                        <p class="text-xs text-yellow-700 mt-1">{{ $skpTahunan->alasan_revisi }}</p>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
+
+        @if($skpTahunan->status === 'REVISI_DITOLAK' && $skpTahunan->catatan_revisi)
+        <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg mb-4">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-orange-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                    <h4 class="text-sm font-semibold text-orange-800 mb-1">Permintaan Revisi Ditolak</h4>
+                    <p class="text-sm text-orange-700 mb-2">Atasan menolak permintaan revisi Anda</p>
+                    <div class="mt-2 p-2 bg-orange-100 rounded">
+                        <p class="text-xs font-semibold text-orange-800">Alasan Penolakan:</p>
+                        <p class="text-xs text-orange-700 mt-1">{{ $skpTahunan->catatan_revisi }}</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -83,6 +125,65 @@
             </form>
         </div>
         @endif
+
+        @can('requestRevision', $skpTahunan)
+        <div class="pt-4 border-t border-gray-200 mt-4" x-data="{ showFormRevisi: false }">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start">
+                        <svg class="w-5 h-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                        <div>
+                            <h4 class="text-sm font-semibold text-blue-800 mb-1">Perlu Revisi SKP?</h4>
+                            <p class="text-sm text-blue-700">SKP Anda sudah disetujui. Jika perlu melakukan perubahan, Anda dapat mengajukan permintaan revisi ke atasan.</p>
+                        </div>
+                    </div>
+                    <button @click="showFormRevisi = !showFormRevisi"
+                            type="button"
+                            class="ml-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition whitespace-nowrap">
+                        <span x-show="!showFormRevisi">Ajukan Revisi</span>
+                        <span x-show="showFormRevisi">Batal</span>
+                    </button>
+                </div>
+
+                <div x-show="showFormRevisi"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 transform scale-95"
+                     x-transition:enter-end="opacity-100 transform scale-100"
+                     class="mt-4 pt-4 border-t border-blue-200">
+                    <form method="POST" action="{{ route('asn.skp-tahunan.ajukan-revisi', $skpTahunan) }}">
+                        @csrf
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Alasan Revisi <span class="text-red-500">*</span>
+                            </label>
+                            <textarea name="alasan_revisi"
+                                      rows="4"
+                                      required
+                                      minlength="10"
+                                      maxlength="1000"
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      placeholder="Jelaskan alasan Anda meminta revisi SKP Tahunan (minimal 10 karakter)"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">Minimal 10 karakter, maksimal 1000 karakter</p>
+                        </div>
+                        <div class="flex items-center justify-end space-x-3">
+                            <button type="button"
+                                    @click="showFormRevisi = false"
+                                    class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition">
+                                Batal
+                            </button>
+                            <button type="submit"
+                                    onclick="return confirm('Yakin ingin mengajukan permintaan revisi? SKP akan kembali ke status Draft jika atasan menyetujui.')"
+                                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold">
+                                Kirim Permintaan Revisi
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        @endcan
     </div>
 
     <!-- Daftar Butir Kinerja -->

@@ -26,11 +26,17 @@ class SkpTahunan extends Model
         'catatan_atasan',
         'approved_by',
         'approved_at',
+        'alasan_revisi',
+        'revisi_diajukan_at',
+        'revisi_disetujui_at',
+        'catatan_revisi',
     ];
 
     protected $casts = [
         'tahun' => 'integer',
         'approved_at' => 'datetime',
+        'revisi_diajukan_at' => 'datetime',
+        'revisi_disetujui_at' => 'datetime',
     ];
 
     protected $appends = ['total_butir_kinerja'];
@@ -76,6 +82,31 @@ class SkpTahunan extends Model
     }
 
     /**
+     * Check if SKP Tahunan bisa diajukan revisi
+     * (hanya jika status DISETUJUI)
+     */
+    public function canRequestRevision(): bool
+    {
+        return $this->status === 'DISETUJUI';
+    }
+
+    /**
+     * Check if SKP Tahunan sedang menunggu persetujuan revisi
+     */
+    public function isPendingRevision(): bool
+    {
+        return $this->status === 'REVISI_DIAJUKAN';
+    }
+
+    /**
+     * Check if revisi sudah ditolak
+     */
+    public function isRevisionRejected(): bool
+    {
+        return $this->status === 'REVISI_DITOLAK';
+    }
+
+    /**
      * Check if SKP Tahunan bisa disubmit
      * (status DRAFT atau DITOLAK, dan ada minimal 1 butir kinerja)
      */
@@ -97,6 +128,8 @@ class SkpTahunan extends Model
     /**
      * Check if detail bisa diedit/dihapus
      * (status DRAFT atau DITOLAK)
+     *
+     * CATATAN: REVISI_DITOLAK TIDAK boleh edit karena SKP tetap DISETUJUI
      */
     public function canEditDetails(): bool
     {

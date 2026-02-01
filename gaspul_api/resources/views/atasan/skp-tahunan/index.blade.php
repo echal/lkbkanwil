@@ -14,6 +14,67 @@
         </div>
     </div>
 
+    {{-- Notification Boxes --}}
+    @if($pendingRevisionCount > 0 || $pendingApprovalCount > 0)
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {{-- Pending Revision Alert --}}
+        @if($pendingRevisionCount > 0)
+        <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-semibold text-orange-800">
+                        {{ $pendingRevisionCount }} Permintaan Revisi Menunggu Persetujuan
+                    </p>
+                    <p class="text-xs text-orange-700 mt-1">
+                        ASN mengajukan permintaan untuk merevisi SKP yang sudah disetujui
+                    </p>
+                    <a href="{{ route('atasan.skp-tahunan.index', ['tahun' => $tahun, 'status' => 'REVISI_DIAJUKAN']) }}"
+                       class="inline-flex items-center mt-2 text-xs font-medium text-orange-800 hover:text-orange-900">
+                        Lihat Semua
+                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- Pending Approval Alert --}}
+        @if($pendingApprovalCount > 0)
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-semibold text-yellow-800">
+                        {{ $pendingApprovalCount }} SKP Menunggu Persetujuan
+                    </p>
+                    <p class="text-xs text-yellow-700 mt-1">
+                        SKP Tahunan baru yang menunggu untuk disetujui atau ditolak
+                    </p>
+                    <a href="{{ route('atasan.skp-tahunan.index', ['tahun' => $tahun, 'status' => 'DIAJUKAN']) }}"
+                       class="inline-flex items-center mt-2 text-xs font-medium text-yellow-800 hover:text-yellow-900">
+                        Lihat Semua
+                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        @endif
+    </div>
+    @endif
+
     {{-- Filters --}}
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <form method="GET" action="{{ route('atasan.skp-tahunan.index') }}" class="space-y-4">
@@ -50,6 +111,8 @@
                         <option value="DIAJUKAN" {{ $status == 'DIAJUKAN' ? 'selected' : '' }}>Diajukan</option>
                         <option value="DISETUJUI" {{ $status == 'DISETUJUI' ? 'selected' : '' }}>Disetujui</option>
                         <option value="DITOLAK" {{ $status == 'DITOLAK' ? 'selected' : '' }}>Ditolak</option>
+                        <option value="REVISI_DIAJUKAN" {{ $status == 'REVISI_DIAJUKAN' ? 'selected' : '' }}>🔔 Revisi Diajukan</option>
+                        <option value="REVISI_DITOLAK" {{ $status == 'REVISI_DITOLAK' ? 'selected' : '' }}>Revisi Ditolak</option>
                     </select>
                 </div>
 
@@ -133,6 +196,17 @@
                                     @elseif($data['status'] === 'DITOLAK')
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                             Ditolak
+                                        </span>
+                                    @elseif($data['status'] === 'REVISI_DIAJUKAN')
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                                            </svg>
+                                            Revisi Diajukan
+                                        </span>
+                                    @elseif($data['status'] === 'REVISI_DITOLAK')
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                            Revisi Ditolak
                                         </span>
                                     @endif
                                 </td>

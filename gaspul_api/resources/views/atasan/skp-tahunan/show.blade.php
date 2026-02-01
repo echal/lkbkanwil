@@ -63,6 +63,17 @@
                     <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-red-100 text-red-800">
                         Ditolak
                     </span>
+                @elseif($skp->status === 'REVISI_DIAJUKAN')
+                    <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-orange-100 text-orange-800">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Revisi Diajukan
+                    </span>
+                @elseif($skp->status === 'REVISI_DITOLAK')
+                    <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-purple-100 text-purple-800">
+                        Revisi Ditolak
+                    </span>
                 @endif
             </div>
         </div>
@@ -184,6 +195,130 @@
             @endforelse
         </div>
     </div>
+
+    {{-- Revision Request Section (hanya tampil jika status REVISI_DIAJUKAN) --}}
+    @can('approveRevision', $skp)
+        <div class="bg-white rounded-xl shadow-sm border border-orange-200 p-6" x-data="{ showApproveRevisi: false, showRejectRevisi: false }">
+            <div class="flex items-start mb-6">
+                <div class="flex-shrink-0">
+                    <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <h3 class="text-lg font-bold text-orange-800 mb-2">
+                        <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        Permintaan Revisi SKP Tahunan
+                    </h3>
+                    <p class="text-sm text-gray-700 mb-4">{{ $asn->name }} mengajukan permintaan revisi untuk SKP Tahunan yang sudah disetujui.</p>
+
+                    @if($skp->alasan_revisi)
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                        <p class="text-xs font-semibold text-orange-800 mb-2">Alasan Permintaan Revisi:</p>
+                        <p class="text-sm text-gray-800">{{ $skp->alasan_revisi }}</p>
+                        <p class="text-xs text-gray-500 mt-2">
+                            Diajukan pada: {{ $skp->revisi_diajukan_at ? $skp->revisi_diajukan_at->format('d/m/Y H:i') : '-' }}
+                        </p>
+                    </div>
+                    @endif
+
+                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                        <div class="flex items-start">
+                            <svg class="w-5 h-5 text-blue-400 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <div>
+                                <p class="text-sm text-blue-800 font-medium mb-1">Informasi Penting:</p>
+                                <ul class="text-sm text-blue-700 space-y-1 ml-1">
+                                    <li>• Jika Anda SETUJUI: SKP akan kembali ke status DRAFT dan ASN dapat mengedit SKP</li>
+                                    <li>• Jika Anda TOLAK: SKP tetap DISETUJUI dan tidak dapat diedit (status menjadi REVISI_DITOLAK)</li>
+                                    <li>• Data RHK dan Kinerja Harian yang sudah ada TIDAK akan terpengaruh</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex space-x-3">
+                {{-- Button Setujui Revisi --}}
+                <button @click="showApproveRevisi = !showApproveRevisi; showRejectRevisi = false"
+                        class="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium">
+                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Setujui Revisi
+                </button>
+
+                {{-- Button Tolak Revisi --}}
+                <button @click="showRejectRevisi = !showRejectRevisi; showApproveRevisi = false"
+                        class="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium">
+                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    Tolak Revisi
+                </button>
+            </div>
+
+            {{-- Form Setujui Revisi --}}
+            <div x-show="showApproveRevisi" x-transition class="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <form method="POST" action="{{ route('atasan.skp-tahunan.setujui-revisi', $skp) }}">
+                    @csrf
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Catatan Persetujuan Revisi (Opsional)</label>
+                        <textarea name="catatan_revisi" rows="3"
+                                  maxlength="1000"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                  placeholder="Berikan catatan untuk ASN (opsional)..."></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Maksimal 1000 karakter</p>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="submit"
+                                onclick="return confirm('Yakin menyetujui permintaan revisi? SKP akan kembali ke status DRAFT dan ASN dapat mengedit.')"
+                                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium">
+                            Konfirmasi Setujui Revisi
+                        </button>
+                        <button type="button" @click="showApproveRevisi = false" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition">
+                            Batal
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {{-- Form Tolak Revisi --}}
+            <div x-show="showRejectRevisi" x-transition class="mt-6 p-4 bg-red-50 rounded-lg border border-red-200">
+                <form method="POST" action="{{ route('atasan.skp-tahunan.tolak-revisi', $skp) }}">
+                    @csrf
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Alasan Penolakan Revisi (Wajib) <span class="text-red-600">*</span>
+                        </label>
+                        <textarea name="catatan_revisi" rows="4"
+                                  required
+                                  minlength="10"
+                                  maxlength="1000"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
+                                  placeholder="Jelaskan alasan menolak permintaan revisi (minimal 10 karakter)..."></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Minimal 10 karakter, maksimal 1000 karakter</p>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="submit"
+                                onclick="return confirm('Yakin menolak permintaan revisi? SKP akan tetap DISETUJUI dan ASN tidak dapat mengedit.')"
+                                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium">
+                            Konfirmasi Tolak Revisi
+                        </button>
+                        <button type="button" @click="showRejectRevisi = false" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition">
+                            Batal
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endcan
 
     {{-- Approval Section (hanya tampil jika status DIAJUKAN) --}}
     @if($canApprove)
