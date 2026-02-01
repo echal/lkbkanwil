@@ -21,7 +21,7 @@ class SkpTahunanPolicy
      */
     public function view(User $user, SkpTahunan $skp): bool
     {
-        return $skp->user_id === $user->id;
+        return $skp->user_id == $user->id;
     }
 
     /**
@@ -30,7 +30,7 @@ class SkpTahunanPolicy
     public function update(User $user, SkpTahunan $skp): bool
     {
         // Must own the SKP
-        if ($skp->user_id !== $user->id) {
+        if ($skp->user_id != $user->id) {
             return false;
         }
 
@@ -44,7 +44,7 @@ class SkpTahunanPolicy
     public function submit(User $user, SkpTahunan $skp): bool
     {
         // Must own the SKP
-        if ($skp->user_id !== $user->id) {
+        if ($skp->user_id != $user->id) {
             return false;
         }
 
@@ -66,12 +66,12 @@ class SkpTahunanPolicy
             'skp_id' => $skp->id,
             'skp_user_id' => $skp->user_id,
             'skp_status' => $skp->status,
-            'ownership_match' => $skp->user_id === $user->id,
+            'ownership_match' => $skp->user_id == $user->id,
             'can_request' => $skp->canRequestRevision(),
         ]);
 
         // Must own the SKP
-        if ($skp->user_id !== $user->id) {
+        if ($skp->user_id != $user->id) {
             return false;
         }
 

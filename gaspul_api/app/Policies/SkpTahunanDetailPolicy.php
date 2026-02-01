@@ -30,7 +30,7 @@ class SkpTahunanDetailPolicy
             return false;
         }
 
-        return $detail->skpTahunan->user_id === $user->id;
+        return $detail->skpTahunan->user_id == $user->id;
     }
 
     /**
@@ -55,11 +55,11 @@ class SkpTahunanDetailPolicy
             'detail_id' => $detail->id,
             'skp_user_id' => $detail->skpTahunan->user_id,
             'skp_status' => $detail->skpTahunan->status,
-            'ownership_match' => $detail->skpTahunan->user_id === $user->id,
+            'ownership_match' => $detail->skpTahunan->user_id == $user->id,
         ]);
 
         // Must own the SKP
-        if ($detail->skpTahunan->user_id !== $user->id) {
+        if ($detail->skpTahunan->user_id != $user->id) {
             return false;
         }
 
@@ -83,7 +83,7 @@ class SkpTahunanDetailPolicy
         }
 
         // Must own the SKP
-        if ($detail->skpTahunan->user_id !== $user->id) {
+        if ($detail->skpTahunan->user_id != $user->id) {
             return false;
         }
 
