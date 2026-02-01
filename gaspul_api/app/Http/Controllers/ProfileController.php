@@ -20,7 +20,7 @@ class ProfileController extends Controller
     public function edit()
     {
         $user = Auth::user();
-        $user->load(['unitKerja', 'unit']);
+        $user->load('unitKerja');
 
         return view('profile.edit', [
             'user' => $user,
