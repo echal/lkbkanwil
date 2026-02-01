@@ -5,7 +5,13 @@ namespace App\Policies;
 use App\Models\User;
 use App\Models\SkpTahunan;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * SKP Tahunan Policy
+ *
+ * PRODUCTION-SAFE: Full debugging + strict authorization
+ */
 class SkpTahunanPolicy
 {
     use HandlesAuthorization;
@@ -28,8 +34,8 @@ class SkpTahunanPolicy
             return false;
         }
 
-        // Can only update if status is DRAFT, DITOLAK, or REVISI_DITOLAK
-        return in_array($skp->status, ['DRAFT', 'DITOLAK', 'REVISI_DITOLAK']);
+        // Can only update if status is DRAFT, DITOLAK
+        return in_array($skp->status, ['DRAFT', 'DITOLAK']);
     }
 
     /**
@@ -46,25 +52,51 @@ class SkpTahunanPolicy
     }
 
     /**
-     * Determine if user can request revision
-     * Only if SKP is approved
+     * Determine if ASN can request revision
+     * Only if SKP is approved (DISETUJUI)
+     *
+     * CRITICAL: This is why button appears/disappears
      */
     public function requestRevision(User $user, SkpTahunan $skp): bool
     {
+        // DEBUG LOG (remove after production works)
+        Log::info('Policy requestRevision Check', [
+            'user_id' => $user->id,
+            'user_role' => $user->role,
+            'skp_id' => $skp->id,
+            'skp_user_id' => $skp->user_id,
+            'skp_status' => $skp->status,
+            'ownership_match' => $skp->user_id === $user->id,
+            'can_request' => $skp->canRequestRevision(),
+        ]);
+
         // Must own the SKP
         if ($skp->user_id !== $user->id) {
             return false;
         }
 
+        // Must be ASN role
+        if ($user->role !== 'ASN') {
+            return false;
+        }
+
         // Can only request revision if status is DISETUJUI
-        return $skp->canRequestRevision();
+        return $skp->status === 'DISETUJUI';
     }
 
     /**
-     * Determine if user (atasan) can approve revision request
+     * Determine if ATASAN can approve revision request
      */
     public function approveRevision(User $user, SkpTahunan $skp): bool
     {
+        // DEBUG LOG
+        Log::info('Policy approveRevision Check', [
+            'user_id' => $user->id,
+            'user_role' => $user->role,
+            'skp_id' => $skp->id,
+            'skp_status' => $skp->status,
+        ]);
+
         // Must be ATASAN role
         if ($user->role !== 'ATASAN') {
             return false;
@@ -75,7 +107,7 @@ class SkpTahunanPolicy
     }
 
     /**
-     * Determine if user (atasan) can reject revision request
+     * Determine if ATASAN can reject revision request
      */
     public function rejectRevision(User $user, SkpTahunan $skp): bool
     {
