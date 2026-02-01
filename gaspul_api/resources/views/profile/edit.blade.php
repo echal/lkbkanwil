@@ -94,7 +94,13 @@
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">Unit Kerja</label>
                         <p class="text-sm text-gray-900 font-medium">
-                            {{ $user->unitKerja->nama_unit ?? $user->unit_kerja ?? '-' }}
+                            @if(isset($user->unitKerja) && $user->unitKerja)
+                                {{ $user->unitKerja->nama_unit }}
+                            @elseif($user->unit_kerja)
+                                {{ $user->unit_kerja }}
+                            @else
+                                -
+                            @endif
                         </p>
                     </div>
 

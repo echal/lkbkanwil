@@ -22,9 +22,17 @@ class ProfileController extends Controller
         try {
             $user = Auth::user();
 
-            // Try to load unitKerja relation if exists
-            if (method_exists($user, 'unitKerja')) {
-                $user->load('unitKerja');
+            // Try to load unitKerja relation if exists (safe loading)
+            try {
+                if (method_exists($user, 'unitKerja')) {
+                    $user->load('unitKerja');
+                }
+            } catch (\Exception $relationError) {
+                // Silently fail if relation loading fails
+                \Log::warning('UnitKerja relation loading failed', [
+                    'user_id' => $user->id,
+                    'error' => $relationError->getMessage(),
+                ]);
             }
 
             return view('profile.edit', [
