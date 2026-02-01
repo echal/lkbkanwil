@@ -65,8 +65,8 @@ class SkpTahunanPolicy
      */
     public function approveRevision(User $user, SkpTahunan $skp): bool
     {
-        // Must be PIMPINAN role
-        if ($user->role !== 'PIMPINAN') {
+        // Must be ATASAN role
+        if ($user->role !== 'ATASAN') {
             return false;
         }
 
@@ -79,8 +79,8 @@ class SkpTahunanPolicy
      */
     public function rejectRevision(User $user, SkpTahunan $skp): bool
     {
-        // Must be PIMPINAN role
-        if ($user->role !== 'PIMPINAN') {
+        // Must be ATASAN role
+        if ($user->role !== 'ATASAN') {
             return false;
         }
 
