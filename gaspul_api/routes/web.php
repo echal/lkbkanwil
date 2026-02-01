@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\IndikatorKinerjaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\RhkPimpinanController;
+use App\Http\Controllers\ProfileController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -40,7 +41,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Profile & Settings
-    Route::get('/profile/edit', function() { return view('profile.edit'); })->name('profile.edit');
+    Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile/update', [ProfileController::class, 'updateProfile'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::get('/settings', function() { return view('settings.index'); })->name('settings.index');
 
     // ASN Routes
