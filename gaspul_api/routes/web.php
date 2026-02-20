@@ -113,6 +113,9 @@ Route::middleware('auth')->group(function () {
             // Cetak PDF Laporan (NEW - for ASN)
             Route::get('/laporan/cetak-harian', [LaporanCetakController::class, 'cetakHarian'])->name('laporan.cetak-harian');
             Route::get('/laporan/cetak-bulanan', [LaporanCetakController::class, 'cetakBulanan'])->name('laporan.cetak-bulanan');
+
+            // Rekap Absensi PUSAKA
+            Route::post('/laporan/rekap-absensi', [BulananController::class, 'storeRekapAbsensi'])->name('laporan.rekap-absensi.store');
         });
     });
 

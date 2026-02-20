@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Asn;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreRekapAbsensiRequest;
 use App\Models\ProgresHarian;
 use App\Models\RencanaAksiBulanan;
 use App\Models\SkpTahunan;
 use App\Models\SkpTahunanDetail;
+use App\Services\RekapAbsensiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 
 /**
@@ -19,6 +22,8 @@ use Carbon\Carbon;
  */
 class BulananController extends Controller
 {
+    public function __construct(protected RekapAbsensiService $rekapService) {}
+
     /**
      * Display Laporan Bulanan ASN
      *
@@ -40,13 +45,19 @@ class BulananController extends Controller
             ->where('tahun', $tahun)
             ->first();
 
+        // Data rekap absensi PUSAKA (selalu dimuat, tidak bergantung pada SKP)
+        $rekapAbsensiList = $this->rekapService->getByUser($asn->id);
+        $bulanOptions     = $this->rekapService->getBulanOptions();
+
         if (!$skpTahunan) {
             return view('asn.bulanan.index', [
-                'hasData' => false,
-                'tahun' => $tahun,
-                'bulan' => $bulan,
-                'namaBulan' => $this->getNamaBulan($bulan),
-                'asn' => $asn,
+                'hasData'          => false,
+                'tahun'            => $tahun,
+                'bulan'            => $bulan,
+                'namaBulan'        => $this->getNamaBulan($bulan),
+                'asn'              => $asn,
+                'rekapAbsensiList' => $rekapAbsensiList,
+                'bulanOptions'     => $bulanOptions,
             ]);
         }
 
@@ -187,29 +198,59 @@ class BulananController extends Controller
         $statusLaporan = 'DRAFT'; // DRAFT, DIKIRIM, DISETUJUI, DITOLAK
 
         return view('asn.bulanan.index', [
-            'hasData' => true,
-            'asn' => $asn,
-            'tahun' => $tahun,
-            'bulan' => $bulan,
+            'hasData'   => true,
+            'asn'       => $asn,
+            'tahun'     => $tahun,
+            'bulan'     => $bulan,
             'namaBulan' => $this->getNamaBulan($bulan),
 
             // Ringkasan
-            'totalHariKerja' => $totalHariKerja,
-            'totalJamKerja' => $totalJamKerja,
-            'sisaMenit' => $sisaMenit,
+            'totalHariKerja'        => $totalHariKerja,
+            'totalJamKerja'         => $totalJamKerja,
+            'sisaMenit'             => $sisaMenit,
             'targetJamKerjaBulanan' => $targetJamKerjaBulanan,
-            'persentaseJamKerja' => $persentaseJamKerja,
-            'statusCapaian' => $statusCapaian,
+            'persentaseJamKerja'    => $persentaseJamKerja,
+            'statusCapaian'         => $statusCapaian,
 
             // Detail Rekap
-            'rekapRhkBulanan' => $rekapRhkBulanan,
-            'rekapKinerjaHarian' => $rekapKinerjaHarian,
+            'rekapRhkBulanan'       => $rekapRhkBulanan,
+            'rekapKinerjaHarian'    => $rekapKinerjaHarian,
             'rekapKerjaHarianDetail' => $rekapKerjaHarianDetail,
 
             // Kesimpulan & Status
             'kesimpulanOtomatis' => $kesimpulanOtomatis,
-            'statusLaporan' => $statusLaporan,
+            'statusLaporan'      => $statusLaporan,
+
+            // Rekap Absensi PUSAKA
+            'rekapAbsensiList' => $rekapAbsensiList,
+            'bulanOptions'     => $bulanOptions,
         ]);
+    }
+
+    /**
+     * Simpan rekap absensi PUSAKA
+     */
+    public function storeRekapAbsensi(StoreRekapAbsensiRequest $request)
+    {
+        try {
+            $this->rekapService->upload(
+                userId: auth()->id(),
+                bulan:  $request->bulan,
+                link:   $request->link_drive,
+            );
+
+            return redirect()
+                ->route('asn.bulanan.index')
+                ->with('success_absensi', 'Rekap absensi berhasil diupload.')
+                ->withFragment('tab-absensi');
+
+        } catch (ValidationException $e) {
+            return redirect()
+                ->route('asn.bulanan.index')
+                ->withErrors($e->errors())
+                ->withInput()
+                ->withFragment('tab-absensi');
+        }
     }
 
     /**
