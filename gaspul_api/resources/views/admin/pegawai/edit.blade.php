@@ -65,10 +65,10 @@
             </div>
 
             <div>
-                <label for="unit_kerja_id" class="block text-sm font-medium text-gray-700 mb-2">Unit Kerja <span class="text-red-500">*</span></label>
-                <select name="unit_kerja_id" id="unit_kerja_id" required
+                <label for="unit_kerja_id" class="block text-sm font-medium text-gray-700 mb-2">Unit Kerja <span class="text-gray-400 text-xs">(opsional - kosongkan untuk Kakanwil/pimpinan tertinggi)</span></label>
+                <select name="unit_kerja_id" id="unit_kerja_id"
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent @error('unit_kerja_id') border-red-500 @enderror">
-                    <option value="">Pilih Unit Kerja</option>
+                    <option value="">-- Tidak Ada / Pimpinan Tertinggi --</option>
                     @foreach($units as $unit)
                         <option value="{{ $unit->id }}" {{ old('unit_kerja_id', $pegawai->unit_kerja_id) == $unit->id ? 'selected' : '' }}>
                             {{ $unit->kode_unit }} - {{ $unit->nama_unit }}

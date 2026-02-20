@@ -40,7 +40,7 @@
     </div>
 
     <!-- Form -->
-    <form method="POST" action="{{ route('asn.harian.update', $entry->id) }}"
+    <form method="POST" action="{{ route('asn.harian.update-tla', $entry->id) }}"
           x-data="{
               jamMulai: '{{ \Carbon\Carbon::parse($entry->jam_mulai)->format('H:i') }}',
               jamSelesai: '{{ \Carbon\Carbon::parse($entry->jam_selesai)->format('H:i') }}',

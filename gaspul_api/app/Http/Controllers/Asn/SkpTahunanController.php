@@ -218,12 +218,17 @@ class SkpTahunanController extends Controller
 
     /**
      * Submit SKP Tahunan untuk persetujuan atasan
+     *
+     * APPROVAL LOGIC BERBASIS HIERARKI (atasan_id):
+     * 1. Jika user punya atasan_id → set approved_by = atasan_id, status = DIAJUKAN
+     * 2. Jika user TIDAK punya atasan_id (puncak hierarki) → auto final approve
+     * 3. Backward compatible: approved_by bisa null untuk data lama
      */
     public function submit($id)
     {
-        $asn = Auth::user();
+        $user = Auth::user();
 
-        $skpTahunan = SkpTahunan::where('user_id', $asn->id)->findOrFail($id);
+        $skpTahunan = SkpTahunan::where('user_id', $user->id)->findOrFail($id);
 
         if (!$skpTahunan->canBeSubmitted()) {
             return redirect()
@@ -231,11 +236,38 @@ class SkpTahunanController extends Controller
                 ->with('error', 'SKP Tahunan tidak dapat diajukan (belum ada butir kinerja atau sudah disetujui)');
         }
 
-        $skpTahunan->update(['status' => 'DIAJUKAN']);
+        // ====================================================================
+        // APPROVAL LOGIC BERBASIS HIERARKI
+        // ====================================================================
+
+        // Cek apakah user punya atasan (load relasi atasan)
+        $user->load('atasan');
+
+        if ($user->atasan_id && $user->atasan) {
+            // CASE 1: User punya atasan → submit untuk approval
+            $skpTahunan->update([
+                'status' => 'DIAJUKAN',
+                'approved_by' => $user->atasan_id, // Set atasan sebagai approver
+                'approved_at' => null, // Clear previous approval date
+                'catatan_atasan' => null, // Clear previous catatan
+            ]);
+
+            $message = 'SKP Tahunan berhasil diajukan ke ' . $user->atasan->name . ' untuk persetujuan';
+        } else {
+            // CASE 2: User TIDAK punya atasan (puncak hierarki) → auto final approve
+            $skpTahunan->update([
+                'status' => 'DISETUJUI',
+                'approved_by' => null, // Tidak ada approver (puncak hierarki)
+                'approved_at' => now(),
+                'catatan_atasan' => 'Otomatis disetujui (Puncak Hierarki)',
+            ]);
+
+            $message = 'SKP Tahunan berhasil disetujui otomatis (Anda adalah puncak hierarki)';
+        }
 
         return redirect()
             ->route('asn.skp-tahunan.index', ['tahun' => $skpTahunan->tahun])
-            ->with('success', 'SKP Tahunan berhasil diajukan untuk persetujuan atasan');
+            ->with('success', $message);
     }
 
     /**

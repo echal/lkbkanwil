@@ -178,6 +178,7 @@ class HolidayHelper
 
     /**
      * Check apakah tanggal bisa input LKH/RHK
+     * HANYA bisa input di HARI INI saja (tanggal kemarin sudah terkunci)
      *
      * @param string|Carbon $date
      * @return bool
@@ -185,6 +186,7 @@ class HolidayHelper
     public static function canInputData($date): bool
     {
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
+        $today = Carbon::today();
 
         // Tidak bisa input di weekend
         if ($carbon->isWeekend()) {
@@ -198,6 +200,12 @@ class HolidayHelper
 
         // Tidak bisa input untuk tanggal masa depan
         if ($carbon->isFuture()) {
+            return false;
+        }
+
+        // PENTING: Tidak bisa input untuk tanggal KEMARIN (hanya hari ini)
+        // Setelah jam 00:00 hari berganti, tanggal sebelumnya terkunci
+        if (!$carbon->isSameDay($today)) {
             return false;
         }
 

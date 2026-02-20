@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\RencanaAksiBulanan;
 use App\Models\ProgresHarian;
 use App\Helpers\HolidayHelper;
+use App\Services\SkpAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -209,7 +210,13 @@ class HarianController extends Controller
      */
     public function pilih()
     {
-        return view('asn.harian.pilih');
+        // Cek apakah SKP sudah disetujui
+        $skpStatus = SkpAccessService::getSkpStatus();
+
+        return view('asn.harian.pilih', [
+            'hasApprovedSkp' => $skpStatus['is_approved'],
+            'skpMessage' => $skpStatus['message'],
+        ]);
     }
 
     /**
@@ -456,6 +463,13 @@ class HarianController extends Controller
                 ->with('error', 'Progres harian tidak ditemukan');
         }
 
+        // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
+        $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
+        if (!HolidayHelper::canInputData($tanggalProgres)) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
+        }
+
         // Parse date to get month and year
         $dateObj = Carbon::parse($progresHarian->tanggal);
         $bulan = $dateObj->month;
@@ -513,6 +527,13 @@ class HarianController extends Controller
         if (!$progresHarian) {
             return redirect()->route('asn.harian.index')
                 ->with('error', 'Progres harian tidak ditemukan');
+        }
+
+        // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
+        $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
+        if (!HolidayHelper::canInputData($tanggalProgres)) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
         }
 
         // Validate based on tipe_progres
@@ -599,20 +620,164 @@ class HarianController extends Controller
         $asn = Auth::user();
         $date = request('date', now()->format('Y-m-d'));
 
-        // Find and delete from database
+        // Find from database
         $progresHarian = ProgresHarian::where('id', $id)
             ->where('user_id', $asn->id)
             ->first();
 
-        if ($progresHarian) {
-            $progresHarian->delete();
-
+        if (!$progresHarian) {
             return redirect()->route('asn.harian.index', ['date' => $date])
-                ->with('success', 'Progres harian berhasil dihapus!');
+                ->with('error', 'Progres harian tidak ditemukan');
         }
 
+        // VALIDASI: Tidak bisa hapus jika tanggal sudah terkunci (bukan hari ini)
+        $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
+        if (!HolidayHelper::canInputData($tanggalProgres)) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Tidak dapat menghapus data. Tanggal ini sudah terkunci (hanya bisa hapus di hari yang sama).');
+        }
+
+        $progresHarian->delete();
+
         return redirect()->route('asn.harian.index', ['date' => $date])
-            ->with('error', 'Progres harian tidak ditemukan');
+            ->with('success', 'Progres harian berhasil dihapus!');
+    }
+
+    /**
+     * Show edit form for TLA (Tugas Langsung Atasan)
+     * Route: /asn/harian/edit-tla/{id} - TANPA middleware skp.approved
+     */
+    public function editTla($id)
+    {
+        $asn = Auth::user();
+        $date = request('date', now()->format('Y-m-d'));
+
+        // Get progres harian from database - hanya TLA
+        $progresHarian = ProgresHarian::where('id', $id)
+            ->where('user_id', $asn->id)
+            ->where('tipe_progres', 'TUGAS_ATASAN')
+            ->first();
+
+        if (!$progresHarian) {
+            return redirect()->route('asn.harian.index', ['date' => $date])
+                ->with('error', 'Tugas Langsung Atasan tidak ditemukan');
+        }
+
+        // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
+        $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
+        if (!HolidayHelper::canInputData($tanggalProgres)) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
+        }
+
+        return view('asn.harian.edit-tla', [
+            'entry' => $progresHarian,
+            'date' => $progresHarian->tanggal->format('Y-m-d'),
+        ]);
+    }
+
+    /**
+     * Update TLA (Tugas Langsung Atasan)
+     * Route: /asn/harian/update-tla/{id} - TANPA middleware skp.approved
+     */
+    public function updateTla(Request $request, $id)
+    {
+        $asn = Auth::user();
+
+        // Find progres harian - hanya TLA
+        $progresHarian = ProgresHarian::where('id', $id)
+            ->where('user_id', $asn->id)
+            ->where('tipe_progres', 'TUGAS_ATASAN')
+            ->first();
+
+        if (!$progresHarian) {
+            return redirect()->route('asn.harian.index')
+                ->with('error', 'Tugas Langsung Atasan tidak ditemukan');
+        }
+
+        // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
+        $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
+        if (!HolidayHelper::canInputData($tanggalProgres)) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
+        }
+
+        $validated = $request->validate([
+            'jam_mulai' => 'required',
+            'jam_selesai' => 'required|after:jam_mulai',
+            'tugas_langsung_atasan' => 'required|string',
+            'link_bukti' => 'nullable|url',
+            'keterangan' => 'nullable|string',
+        ], [
+            'jam_selesai.after' => 'Jam selesai harus lebih besar dari jam mulai',
+        ]);
+
+        // Calculate duration
+        $tanggal = $progresHarian->tanggal->format('Y-m-d');
+        $jamMulai = Carbon::parse($tanggal . ' ' . $validated['jam_mulai']);
+        $jamSelesai = Carbon::parse($tanggal . ' ' . $validated['jam_selesai']);
+        $durasiMenit = $jamSelesai->diffInMinutes($jamMulai);
+
+        // Validate total durasi per hari (exclude current record)
+        $totalDurasiHariIni = ProgresHarian::where('user_id', $asn->id)
+            ->whereDate('tanggal', $tanggal)
+            ->where('id', '!=', $id)
+            ->sum('durasi_menit');
+
+        if (($totalDurasiHariIni + $durasiMenit) > 450) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Total durasi kerja hari ini tidak boleh melebihi 7 jam 30 menit (450 menit).');
+        }
+
+        // Determine status_bukti
+        $statusBukti = empty($validated['link_bukti']) ? 'BELUM_ADA' : 'SUDAH_ADA';
+
+        // Update data
+        $progresHarian->update([
+            'jam_mulai' => $validated['jam_mulai'],
+            'jam_selesai' => $validated['jam_selesai'],
+            'tugas_atasan' => $validated['tugas_langsung_atasan'],
+            'bukti_dukung' => $validated['link_bukti'] ?? null,
+            'status_bukti' => $statusBukti,
+            'keterangan' => $validated['keterangan'] ?? null,
+        ]);
+
+        return redirect()->route('asn.harian.index', ['date' => $tanggal])
+            ->with('success', 'Tugas Langsung Atasan berhasil diupdate!');
+    }
+
+    /**
+     * Delete TLA (Tugas Langsung Atasan)
+     * Route: /asn/harian/destroy-tla/{id} - TANPA middleware skp.approved
+     */
+    public function destroyTla($id)
+    {
+        $asn = Auth::user();
+        $date = request('date', now()->format('Y-m-d'));
+
+        // Find - hanya TLA
+        $progresHarian = ProgresHarian::where('id', $id)
+            ->where('user_id', $asn->id)
+            ->where('tipe_progres', 'TUGAS_ATASAN')
+            ->first();
+
+        if (!$progresHarian) {
+            return redirect()->route('asn.harian.index', ['date' => $date])
+                ->with('error', 'Tugas Langsung Atasan tidak ditemukan');
+        }
+
+        // VALIDASI: Tidak bisa hapus jika tanggal sudah terkunci (bukan hari ini)
+        $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
+        if (!HolidayHelper::canInputData($tanggalProgres)) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Tidak dapat menghapus data. Tanggal ini sudah terkunci (hanya bisa hapus di hari yang sama).');
+        }
+
+        $progresHarian->delete();
+
+        return redirect()->route('asn.harian.index', ['date' => $date])
+            ->with('success', 'Tugas Langsung Atasan berhasil dihapus!');
     }
 
     /**

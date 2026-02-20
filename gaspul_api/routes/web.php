@@ -46,9 +46,14 @@ Route::middleware('auth')->group(function () {
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::get('/settings', function() { return view('settings.index'); })->name('settings.index');
 
-    // ASN Routes
-    Route::prefix('asn')->name('asn.')->middleware('role:ASN')->group(function () {
-        // SKP Tahunan
+    // ========================================================================
+    // SKP & KINERJA HARIAN Routes (untuk ASN & ATASAN)
+    // Middleware 'non_admin': Semua role KECUALI ADMIN bisa akses
+    // ========================================================================
+    Route::prefix('asn')->name('asn.')->middleware('non_admin')->group(function () {
+        // ================================================================
+        // SKP Tahunan - TIDAK perlu SKP approved (ASN buat & ajukan disini)
+        // ================================================================
         Route::get('/skp-tahunan', [SkpTahunanController::class, 'index'])->name('skp-tahunan.index');
         Route::get('/skp-tahunan/create', [SkpTahunanController::class, 'create'])->name('skp-tahunan.create');
         Route::post('/skp-tahunan/store', [SkpTahunanController::class, 'store'])->name('skp-tahunan.store');
@@ -62,36 +67,53 @@ Route::middleware('auth')->group(function () {
         // Revision Management
         Route::post('/skp-tahunan/{skpTahunan}/ajukan-revisi', [SkpTahunanController::class, 'ajukanRevisi'])->name('skp-tahunan.ajukan-revisi');
 
-        // Kinerja Harian
+        // ================================================================
+        // KINERJA HARIAN - Halaman view BOLEH diakses semua ASN
+        // Hanya form input Kinerja Harian yang butuh SKP approved
+        // TLA selalu boleh diakses tanpa SKP approved
+        // ================================================================
         Route::get('/harian', [HarianController::class, 'index'])->name('harian.index');
         Route::get('/harian/pilih', [HarianController::class, 'pilih'])->name('harian.pilih');
-        Route::get('/harian/form-kinerja', [HarianController::class, 'formKinerja'])->name('harian.form-kinerja');
-        Route::post('/harian/store-kinerja', [HarianController::class, 'storeKinerja'])->name('harian.store-kinerja');
+
+        // TLA - TIDAK perlu SKP approved (Create, Edit, Update, Delete, Cetak)
         Route::get('/harian/form-tla', [HarianController::class, 'formTla'])->name('harian.form-tla');
         Route::post('/harian/store-tla', [HarianController::class, 'storeTla'])->name('harian.store-tla');
-        Route::get('/harian/edit/{id}', [HarianController::class, 'edit'])->name('harian.edit');
-        Route::put('/harian/update/{id}', [HarianController::class, 'update'])->name('harian.update');
-        Route::delete('/harian/destroy/{id}', [HarianController::class, 'destroy'])->name('harian.destroy');
-        Route::get('/harian/cetak/{id}', [HarianController::class, 'cetakKinerjaHarian'])->name('harian.cetak');
+        Route::get('/harian/edit-tla/{id}', [HarianController::class, 'editTla'])->name('harian.edit-tla');
+        Route::put('/harian/update-tla/{id}', [HarianController::class, 'updateTla'])->name('harian.update-tla');
+        Route::delete('/harian/destroy-tla/{id}', [HarianController::class, 'destroyTla'])->name('harian.destroy-tla');
         Route::get('/harian/cetak-tla/{id}', [HarianController::class, 'cetakTugasAtasan'])->name('harian.cetak-tla');
 
-        // Rencana Kerja
-        Route::get('/rencana-kerja', [RencanaKerjaController::class, 'index'])->name('rencana-kerja.index');
-        Route::get('/rencana-kerja/tambah', [RencanaKerjaController::class, 'create'])->name('rencana-kerja.tambah');
-        Route::post('/rencana-kerja/store', [RencanaKerjaController::class, 'store'])->name('rencana-kerja.store');
-        Route::get('/rencana-kerja/detail/{id}', [RencanaKerjaController::class, 'show'])->name('rencana-kerja.detail');
-        Route::get('/rencana-kerja/edit/{id}', [RencanaKerjaController::class, 'edit'])->name('rencana-kerja.edit');
-        Route::put('/rencana-kerja/update/{id}', [RencanaKerjaController::class, 'update'])->name('rencana-kerja.update');
-        Route::delete('/rencana-kerja/destroy/{id}', [RencanaKerjaController::class, 'destroy'])->name('rencana-kerja.destroy');
+        // ================================================================
+        // FITUR YANG BUTUH SKP APPROVED
+        // Form Kinerja Harian, RHK Bulanan, Laporan Bulanan
+        // ================================================================
+        Route::middleware('skp.approved')->group(function () {
+            // Kinerja Harian (form input & CRUD - butuh SKP approved)
+            Route::get('/harian/form-kinerja', [HarianController::class, 'formKinerja'])->name('harian.form-kinerja');
+            Route::post('/harian/store-kinerja', [HarianController::class, 'storeKinerja'])->name('harian.store-kinerja');
+            Route::get('/harian/edit/{id}', [HarianController::class, 'edit'])->name('harian.edit');
+            Route::put('/harian/update/{id}', [HarianController::class, 'update'])->name('harian.update');
+            Route::delete('/harian/destroy/{id}', [HarianController::class, 'destroy'])->name('harian.destroy');
+            Route::get('/harian/cetak/{id}', [HarianController::class, 'cetakKinerjaHarian'])->name('harian.cetak');
 
-        // Bulanan (Laporan Kinerja Bulanan)
-        Route::get('/bulanan', [BulananController::class, 'index'])->name('bulanan.index');
-        Route::get('/bulanan/export-pdf', [BulananController::class, 'exportPdf'])->name('bulanan.export-pdf');
-        Route::post('/bulanan/kirim-atasan', [BulananController::class, 'kirimKeAtasan'])->name('bulanan.kirim-atasan');
+            // Rencana Kerja (RHK Bulanan)
+            Route::get('/rencana-kerja', [RencanaKerjaController::class, 'index'])->name('rencana-kerja.index');
+            Route::get('/rencana-kerja/tambah', [RencanaKerjaController::class, 'create'])->name('rencana-kerja.tambah');
+            Route::post('/rencana-kerja/store', [RencanaKerjaController::class, 'store'])->name('rencana-kerja.store');
+            Route::get('/rencana-kerja/detail/{id}', [RencanaKerjaController::class, 'show'])->name('rencana-kerja.detail');
+            Route::get('/rencana-kerja/edit/{id}', [RencanaKerjaController::class, 'edit'])->name('rencana-kerja.edit');
+            Route::put('/rencana-kerja/update/{id}', [RencanaKerjaController::class, 'update'])->name('rencana-kerja.update');
+            Route::delete('/rencana-kerja/destroy/{id}', [RencanaKerjaController::class, 'destroy'])->name('rencana-kerja.destroy');
 
-        // Cetak PDF Laporan (NEW - for ASN)
-        Route::get('/laporan/cetak-harian', [LaporanCetakController::class, 'cetakHarian'])->name('laporan.cetak-harian');
-        Route::get('/laporan/cetak-bulanan', [LaporanCetakController::class, 'cetakBulanan'])->name('laporan.cetak-bulanan');
+            // Bulanan (Laporan Kinerja Bulanan)
+            Route::get('/bulanan', [BulananController::class, 'index'])->name('bulanan.index');
+            Route::get('/bulanan/export-pdf', [BulananController::class, 'exportPdf'])->name('bulanan.export-pdf');
+            Route::post('/bulanan/kirim-atasan', [BulananController::class, 'kirimKeAtasan'])->name('bulanan.kirim-atasan');
+
+            // Cetak PDF Laporan (NEW - for ASN)
+            Route::get('/laporan/cetak-harian', [LaporanCetakController::class, 'cetakHarian'])->name('laporan.cetak-harian');
+            Route::get('/laporan/cetak-bulanan', [LaporanCetakController::class, 'cetakBulanan'])->name('laporan.cetak-bulanan');
+        });
     });
 
     // Atasan Routes
@@ -150,5 +172,10 @@ Route::middleware('auth')->group(function () {
 
         // RHK Pimpinan (Resource)
         Route::resource('rhk-pimpinan', RhkPimpinanController::class);
+
+        // Dashboard Admin
+        Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard.index');
+        Route::get('/dashboard/refresh', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'refresh'])->name('dashboard.refresh');
+        Route::get('/dashboard/daily-report', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'dailyReport'])->name('dashboard.daily-report');
     });
 });

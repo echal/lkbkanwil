@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Rencana Kerja - Laporan Harian')
-@section('page-title', 'Rencana Kerja')
+@section('title', 'Rencana Aksi - Laporan Harian')
+@section('page-title', 'Rencana Aksi')
 
 @section('content')
 @php
@@ -20,7 +20,7 @@
     <!-- Header with Year Filter -->
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-2xl font-bold text-gray-800">Rencana Kerja Tahun {{ $tahun }}</h2>
+            <h2 class="text-2xl font-bold text-gray-800">Rencana Aksi Tahun {{ $tahun }}</h2>
             <p class="text-sm text-gray-600 mt-1">Kelola rencana aksi bulanan berdasarkan RHK Tahunan Anda</p>
         </div>
 
@@ -120,22 +120,31 @@
                                 <span class="text-xs text-gray-600">{{ $rhk['total_terisi'] }}/12 bulan terisi</span>
                             </div>
 
-                            <h3 class="text-lg font-bold text-gray-900 mb-2">
+                            {{-- Butir RHK - ukuran kecil, warna soft --}}
+                            <p class="text-sm text-slate-500 mb-1">
                                 {{ $rhk['indikator_kinerja'] }}
-                            </h3>
+                            </p>
 
-                            <div class="text-sm text-gray-600 space-y-1">
+                            <div class="space-y-2">
+                                {{-- Rencana Aksi - FOKUS UTAMA: besar & tebal --}}
                                 <div class="flex items-start">
-                                    <svg class="w-4 h-4 mt-0.5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-5 h-5 mt-0.5 mr-2 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                                     </svg>
-                                    <span><strong>Rencana Aksi:</strong> {{ Str::limit($rhk['rencana_aksi'], 100) }}</span>
+                                    <div>
+                                        <span class="text-xs text-slate-400 block">Rencana Aksi</span>
+                                        <span class="text-lg font-semibold text-gray-900">{{ Str::limit($rhk['rencana_aksi'], 100) }}</span>
+                                    </div>
                                 </div>
+                                {{-- Target Tahunan - cukup menonjol --}}
                                 <div class="flex items-center">
-                                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-5 h-5 mr-2 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                                     </svg>
-                                    <span><strong>Target Tahunan:</strong> {{ $rhk['target_tahunan'] }} {{ $rhk['satuan'] }}</span>
+                                    <div>
+                                        <span class="text-xs text-slate-400 block">Target Tahunan</span>
+                                        <span class="text-base font-medium text-gray-800">{{ $rhk['target_tahunan'] }} {{ $rhk['satuan'] }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

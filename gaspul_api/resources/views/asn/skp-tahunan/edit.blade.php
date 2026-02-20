@@ -65,14 +65,14 @@
                 </p>
             </div>
 
-            <!-- Rencana Aksi -->
+            <!-- Rencana Hasil Kerja -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Rencana Aksi <span class="text-red-500">*</span>
+                    Rencana Hasil Kerja <span class="text-red-500">*</span>
                 </label>
                 <textarea name="rencana_aksi" rows="4" required
                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('rencana_aksi') border-red-500 @enderror"
-                    placeholder="Jelaskan rencana aksi yang akan Anda lakukan untuk mencapai RHK Pimpinan...">{{ old('rencana_aksi', $detail->rencana_aksi) }}</textarea>
+                    placeholder="Jelaskan rencana hasil kerja yang akan Anda capai...">{{ old('rencana_aksi', $detail->rencana_aksi) }}</textarea>
                 @error('rencana_aksi')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror

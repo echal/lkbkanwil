@@ -5,6 +5,8 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\EnsureSkpApproved;
+use App\Http\Middleware\NonAdminMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => CheckRole::class,
+            'skp.approved' => EnsureSkpApproved::class,
+            'non_admin' => NonAdminMiddleware::class, // Middleware untuk block ADMIN dari SKP & Kinerja
         ]);
 
         // Prevent redirect to 'login' route for unauthenticated API requests

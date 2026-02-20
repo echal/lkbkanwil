@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UnitKerja;
+use App\Models\ProgresHarian;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -42,6 +43,21 @@ class PegawaiController extends Controller
             $q->where('status_pegawai', $request->status);
         });
 
+        // Filter berdasarkan Status Pengisian KH & TLA
+        $query->when($request->filled('status_pengisian'), function ($q) use ($request) {
+            if ($request->status_pengisian == 'no_kh') {
+                // ASN tidak pernah isi Kinerja Harian
+                $q->whereDoesntHave('kinerjaHarian');
+            } elseif ($request->status_pengisian == 'no_tla') {
+                // ASN tidak pernah isi Tugas Atasan Langsung
+                $q->whereDoesntHave('tugasAtasanLangsung');
+            } elseif ($request->status_pengisian == 'no_all') {
+                // ASN tidak pernah isi KH & TLA
+                $q->whereDoesntHave('kinerjaHarian')
+                  ->whereDoesntHave('tugasAtasanLangsung');
+            }
+        });
+
         // Sorting & Pagination
         $pegawai = $query->latest()->paginate(15)->withQueryString();
 
@@ -50,7 +66,52 @@ class PegawaiController extends Controller
             ->orderBy('nama_unit')
             ->get(['id', 'nama_unit']);
 
-        return view('admin.pegawai.index', compact('pegawai', 'unitKerjaList'));
+        // ========================================================================
+        // STATISTIK MONITORING PENGISIAN KH & TLA BULAN BERJALAN
+        // ========================================================================
+
+        // Total seluruh ASN (role ASN saja)
+        $totalAsn = User::where('role', 'ASN')->where('status_pegawai', 'AKTIF')->count();
+
+        // ASN belum isi KH bulan ini
+        $belumIsiKhBulanIni = User::where('role', 'ASN')
+            ->where('status_pegawai', 'AKTIF')
+            ->whereDoesntHave('kinerjaHarian', function ($q) {
+                $q->whereMonth('tanggal', now()->month)
+                  ->whereYear('tanggal', now()->year);
+            })
+            ->count();
+
+        // ASN belum isi TLA bulan ini
+        $belumIsiTlaBulanIni = User::where('role', 'ASN')
+            ->where('status_pegawai', 'AKTIF')
+            ->whereDoesntHave('tugasAtasanLangsung', function ($q) {
+                $q->whereMonth('tanggal', now()->month)
+                  ->whereYear('tanggal', now()->year);
+            })
+            ->count();
+
+        // ASN belum isi KH & TLA bulan ini
+        $belumIsiKeduanyaBulanIni = User::where('role', 'ASN')
+            ->where('status_pegawai', 'AKTIF')
+            ->whereDoesntHave('kinerjaHarian', function ($q) {
+                $q->whereMonth('tanggal', now()->month)
+                  ->whereYear('tanggal', now()->year);
+            })
+            ->whereDoesntHave('tugasAtasanLangsung', function ($q) {
+                $q->whereMonth('tanggal', now()->month)
+                  ->whereYear('tanggal', now()->year);
+            })
+            ->count();
+
+        return view('admin.pegawai.index', compact(
+            'pegawai',
+            'unitKerjaList',
+            'totalAsn',
+            'belumIsiKhBulanIni',
+            'belumIsiTlaBulanIni',
+            'belumIsiKeduanyaBulanIni'
+        ));
     }
 
     public function create()
@@ -67,7 +128,7 @@ class PegawaiController extends Controller
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
             'role' => 'required|in:ADMIN,ATASAN,ASN',
-            'unit_kerja_id' => 'required|exists:unit_kerja,id',
+            'unit_kerja_id' => 'nullable|exists:unit_kerja,id',
             'jabatan' => 'nullable',
             'status_pegawai' => 'required|in:AKTIF,NONAKTIF',
         ]);
@@ -95,7 +156,7 @@ class PegawaiController extends Controller
             'email' => ['required', 'email', Rule::unique('users')->ignore($pegawai)],
             'password' => 'nullable|min:6',
             'role' => 'required|in:ADMIN,ATASAN,ASN',
-            'unit_kerja_id' => 'required|exists:unit_kerja,id',
+            'unit_kerja_id' => 'nullable|exists:unit_kerja,id',
             'jabatan' => 'nullable',
             'status_pegawai' => 'required|in:AKTIF,NONAKTIF',
         ]);

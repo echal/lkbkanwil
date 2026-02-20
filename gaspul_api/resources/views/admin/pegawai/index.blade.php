@@ -44,12 +44,79 @@
     </div>
     @endif
 
+    {{-- STATISTIK MONITORING PENGISIAN KH & TLA BULAN INI --}}
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {{-- Card 1: Total ASN --}}
+        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-blue-600 mb-1">Total ASN Aktif</p>
+                    <h3 class="text-3xl font-bold text-blue-900">{{ $totalAsn }}</h3>
+                    <p class="text-xs text-blue-700 mt-1">Pegawai</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        {{-- Card 2: Belum Isi KH Bulan Ini --}}
+        <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl shadow-sm border border-orange-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-orange-600 mb-1">Belum Isi KH</p>
+                    <h3 class="text-3xl font-bold text-orange-900">{{ $belumIsiKhBulanIni }}</h3>
+                    <p class="text-xs text-orange-700 mt-1">Bulan {{ now()->format('F Y') }}</p>
+                </div>
+                <div class="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        {{-- Card 3: Belum Isi TLA Bulan Ini --}}
+        <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl shadow-sm border border-yellow-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-yellow-600 mb-1">Belum Isi TLA</p>
+                    <h3 class="text-3xl font-bold text-yellow-900">{{ $belumIsiTlaBulanIni }}</h3>
+                    <p class="text-xs text-yellow-700 mt-1">Bulan {{ now()->format('F Y') }}</p>
+                </div>
+                <div class="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        {{-- Card 4: Belum Isi KH & TLA (Critical) --}}
+        <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-sm border border-red-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-red-600 mb-1">Belum Isi KH & TLA</p>
+                    <h3 class="text-3xl font-bold text-red-900">{{ $belumIsiKeduanyaBulanIni }}</h3>
+                    <p class="text-xs text-red-700 mt-1">Bulan {{ now()->format('F Y') }}</p>
+                </div>
+                <div class="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Filter Form --}}
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <form method="GET" action="{{ route('admin.pegawai.index') }}" class="space-y-4">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-800">Filter & Pencarian</h3>
-                @if(request()->hasAny(['nip', 'unit_kerja_id', 'role', 'status']))
+                @if(request()->hasAny(['nip', 'unit_kerja_id', 'role', 'status', 'status_pengisian']))
                     <a href="{{ route('admin.pegawai.index') }}"
                        class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,7 +127,7 @@
                 @endif
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 {{-- Filter NIP --}}
                 <div>
                     <label for="nip" class="block text-sm font-medium text-gray-700 mb-2">
@@ -129,6 +196,24 @@
                         <option value="">Semua Status</option>
                         <option value="AKTIF" {{ request('status') == 'AKTIF' ? 'selected' : '' }}>AKTIF</option>
                         <option value="NONAKTIF" {{ request('status') == 'NONAKTIF' ? 'selected' : '' }}>NONAKTIF</option>
+                    </select>
+                </div>
+
+                {{-- Filter Status Pengisian KH & TLA --}}
+                <div>
+                    <label for="status_pengisian" class="block text-sm font-medium text-gray-700 mb-2">
+                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                        </svg>
+                        Status Pengisian
+                    </label>
+                    <select name="status_pengisian"
+                            id="status_pengisian"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">Semua</option>
+                        <option value="no_kh" {{ request('status_pengisian') == 'no_kh' ? 'selected' : '' }}>Tidak Pernah Isi KH</option>
+                        <option value="no_tla" {{ request('status_pengisian') == 'no_tla' ? 'selected' : '' }}>Tidak Pernah Isi TLA</option>
+                        <option value="no_all" {{ request('status_pengisian') == 'no_all' ? 'selected' : '' }}>Tidak Pernah Isi KH & TLA</option>
                     </select>
                 </div>
             </div>
@@ -208,13 +293,13 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
                                 </svg>
                                 <p class="text-gray-600 font-medium">
-                                    @if(request()->hasAny(['nip', 'unit_kerja_id', 'role', 'status']))
+                                    @if(request()->hasAny(['nip', 'unit_kerja_id', 'role', 'status', 'status_pengisian']))
                                         Tidak ada pegawai yang sesuai dengan filter
                                     @else
                                         Belum ada data pegawai
                                     @endif
                                 </p>
-                                @if(request()->hasAny(['nip', 'unit_kerja_id', 'role', 'status']))
+                                @if(request()->hasAny(['nip', 'unit_kerja_id', 'role', 'status', 'status_pengisian']))
                                     <a href="{{ route('admin.pegawai.index') }}"
                                        class="mt-3 text-blue-600 hover:text-blue-800 text-sm">
                                         Reset Filter
