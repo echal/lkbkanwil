@@ -42,6 +42,7 @@ class HierarchiApprovalSeeder extends Seeder
 
         $kakanwil = User::where('jabatan', 'LIKE', '%Kepala Kantor Wilayah%')
             ->orWhere('jabatan', 'LIKE', '%Kakanwil%')
+            ->where('role', 'ATASAN')
             ->first();
 
         if (!$kakanwil) {
@@ -62,7 +63,8 @@ class HierarchiApprovalSeeder extends Seeder
             $query->where('jabatan', 'LIKE', '%Kepala Bidang%')
                   ->orWhere('jabatan', 'LIKE', '%Kepala Bagian%')
                   ->orWhere('jabatan', 'LIKE', '%Kabid%')
-                  ->orWhere('jabatan', 'LIKE', '%Kabag%');
+                  ->orWhere('jabatan', 'LIKE', '%Kabag%')
+                  ->orWhere('jabatan', 'LIKE', '%Pembimbing Masyarakat%');
         })
         ->whereNull('atasan_id') // Hanya update yang belum punya atasan
         ->get();
@@ -103,25 +105,20 @@ class HierarchiApprovalSeeder extends Seeder
         $updatedAsn = 0;
 
         foreach ($asnList as $asn) {
-            // Cari Kabid/Kabag di unit kerja yang sama
-            $atasan = User::where(function($query) {
-                $query->where('jabatan', 'LIKE', '%Kepala Bidang%')
-                      ->orWhere('jabatan', 'LIKE', '%Kepala Bagian%')
-                      ->orWhere('jabatan', 'LIKE', '%Kabid%')
-                      ->orWhere('jabatan', 'LIKE', '%Kabag%');
-            })
-            ->where('unit_kerja_id', $asn->unit_kerja_id)
-            ->first();
+            // Cari ATASAN di unit kerja yang sama (role ATASAN, bukan Kakanwil)
+            $atasan = User::where('role', 'ATASAN')
+                ->where('status_pegawai', 'AKTIF')
+                ->where('unit_kerja_id', $asn->unit_kerja_id)
+                ->where('id', '!=', $kakanwil->id)
+                ->first();
 
-            // Jika ada Kabid/Kabag di unit yang sama, set sebagai atasan
             if ($atasan) {
                 $asn->update(['atasan_id' => $atasan->id]);
-                $updatedAsn++;
             } else {
                 // Fallback: set Kakanwil sebagai atasan langsung
                 $asn->update(['atasan_id' => $kakanwil->id]);
-                $updatedAsn++;
             }
+            $updatedAsn++;
         }
 
         $this->command->info("✓ Updated $updatedAsn ASN → atasan = Kabid/Kabag (atau Kakanwil)");

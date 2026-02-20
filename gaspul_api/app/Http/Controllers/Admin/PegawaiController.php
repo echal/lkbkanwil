@@ -143,7 +143,12 @@ class PegawaiController extends Controller
     {
         $pegawai = User::findOrFail($id);
         $units = UnitKerja::aktif()->get();
-        return view('admin.pegawai.edit', compact('pegawai', 'units'));
+        $atasanList = User::whereIn('role', ['ATASAN'])
+            ->where('status_pegawai', 'AKTIF')
+            ->where('id', '!=', $id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'jabatan']);
+        return view('admin.pegawai.edit', compact('pegawai', 'units', 'atasanList'));
     }
 
     public function update(Request $request, $id)
@@ -157,6 +162,7 @@ class PegawaiController extends Controller
             'password' => 'nullable|min:6',
             'role' => 'required|in:ADMIN,ATASAN,ASN',
             'unit_kerja_id' => 'nullable|exists:unit_kerja,id',
+            'atasan_id' => 'nullable|exists:users,id',
             'jabatan' => 'nullable',
             'status_pegawai' => 'required|in:AKTIF,NONAKTIF',
         ]);

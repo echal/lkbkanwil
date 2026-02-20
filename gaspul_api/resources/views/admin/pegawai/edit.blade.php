@@ -91,6 +91,22 @@
             </div>
 
             <div>
+                <label for="atasan_id" class="block text-sm font-medium text-gray-700 mb-2">Atasan Langsung <span class="text-gray-400 text-xs">(opsional - kosongkan untuk Kakanwil/pimpinan tertinggi)</span></label>
+                <select name="atasan_id" id="atasan_id"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent @error('atasan_id') border-red-500 @enderror">
+                    <option value="">-- Tidak Ada / Pimpinan Tertinggi --</option>
+                    @foreach($atasanList as $atasan)
+                        <option value="{{ $atasan->id }}" {{ old('atasan_id', $pegawai->atasan_id) == $atasan->id ? 'selected' : '' }}>
+                            {{ $atasan->name }}{{ $atasan->jabatan ? ' — ' . $atasan->jabatan : '' }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('atasan_id')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
                 <label for="role" class="block text-sm font-medium text-gray-700 mb-2">Role <span class="text-red-500">*</span></label>
                 <select name="role" id="role" required
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent @error('role') border-red-500 @enderror">
