@@ -37,16 +37,12 @@ class KinerjaBawahanController extends Controller
         $bulan = $request->input('bulan', now()->month);
         $viewMode = $request->input('view_mode', 'bulanan'); // bulanan | tahunan
 
-        // Get all ASN bawahan in the same unit_kerja
-        $query = User::where('role', 'ASN')
-            ->where('status_pegawai', 'AKTIF');
-
-        // Filter by unit_kerja_id if atasan has one
-        if ($atasan->unit_kerja_id) {
-            $query->where('unit_kerja_id', $atasan->unit_kerja_id);
-        }
-
-        $asnList = $query->orderBy('name')->get();
+        // Get ASN bawahan langsung berdasarkan atasan_id
+        $asnList = User::where('role', 'ASN')
+            ->where('status_pegawai', 'AKTIF')
+            ->where('atasan_id', $atasan->id)
+            ->orderBy('name')
+            ->get();
 
         // Calculate performance metrics for each ASN
         $kinerjaData = $asnList->map(function($asn) use ($tahun, $bulan, $viewMode) {

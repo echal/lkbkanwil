@@ -38,8 +38,8 @@ class HarianBawahanController extends Controller
         $mode = $request->input('mode', 'harian'); // harian|mingguan|bulanan
         $tanggal = $request->input('tanggal', now()->format('Y-m-d'));
 
-        // Get bawahan by unit_kerja_id (SECURITY: unit-based filtering)
-        $bawahan_list = $this->getBawahanWithStatus($atasan->unit_kerja_id, $tanggal, $mode);
+        // Get bawahan langsung berdasarkan atasan_id
+        $bawahan_list = $this->getBawahanWithStatus($atasan->id, $tanggal, $mode);
 
         return view('atasan.harian-bawahan.index', compact('atasan', 'bawahan_list', 'mode', 'tanggal'));
     }
@@ -51,10 +51,10 @@ class HarianBawahanController extends Controller
     {
         $atasan = Auth::user();
 
-        // Security check
+        // Security check: pastikan ASN adalah bawahan langsung
         $asn = DB::table('users')
             ->where('id', $user_id)
-            ->where('unit_kerja_id', $atasan->unit_kerja_id) // Same unit only
+            ->where('atasan_id', $atasan->id)
             ->first();
 
         if (!$asn) {
@@ -77,10 +77,10 @@ class HarianBawahanController extends Controller
     {
         $atasan = Auth::user();
 
-        // Security check
+        // Security check: pastikan ASN adalah bawahan langsung
         $asn = DB::table('users')
             ->where('id', $user_id)
-            ->where('unit_kerja_id', $atasan->unit_kerja_id)
+            ->where('atasan_id', $atasan->id)
             ->first();
 
         if (!$asn) {
@@ -104,10 +104,10 @@ class HarianBawahanController extends Controller
     {
         $atasan = Auth::user();
 
-        // Security check
+        // Security check: pastikan ASN adalah bawahan langsung
         $asn = DB::table('users')
             ->where('id', $user_id)
-            ->where('unit_kerja_id', $atasan->unit_kerja_id)
+            ->where('atasan_id', $atasan->id)
             ->first();
 
         if (!$asn) {
@@ -134,7 +134,7 @@ class HarianBawahanController extends Controller
      * Uses: JOIN + GROUP BY + SUM + COUNT(CASE)
      * NO whereHas nesting!
      */
-    private function getBawahanWithStatus($unit_kerja_id, $tanggal, $mode)
+    private function getBawahanWithStatus($atasan_id, $tanggal, $mode)
     {
         // Build date range
         list($start_date, $end_date) = $this->getDateRange($tanggal, $mode);
@@ -145,7 +145,7 @@ class HarianBawahanController extends Controller
                 $join->on('u.id', '=', 'ph.user_id')
                      ->whereBetween('ph.tanggal', [$start_date, $end_date]);
             })
-            ->where('u.unit_kerja_id', $unit_kerja_id)
+            ->where('u.atasan_id', $atasan_id)
             ->where('u.role', 'ASN')
             ->where('u.status_pegawai', 'AKTIF')
             ->select(

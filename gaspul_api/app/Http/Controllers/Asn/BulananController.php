@@ -8,6 +8,7 @@ use App\Models\ProgresHarian;
 use App\Models\RencanaAksiBulanan;
 use App\Models\SkpTahunan;
 use App\Models\SkpTahunanDetail;
+use App\Services\LaporanBulananService;
 use App\Services\RekapAbsensiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,10 @@ use Carbon\Carbon;
  */
 class BulananController extends Controller
 {
-    public function __construct(protected RekapAbsensiService $rekapService) {}
+    public function __construct(
+        protected RekapAbsensiService $rekapService,
+        protected LaporanBulananService $laporanService,
+    ) {}
 
     /**
      * Display Laporan Bulanan ASN
@@ -49,6 +53,13 @@ class BulananController extends Controller
         $rekapAbsensiList = $this->rekapService->getByUser($asn->id);
         $bulanOptions     = $this->rekapService->getBulanOptions();
 
+        // Riwayat Laporan Bulanan Kinerja (selalu dimuat)
+        $riwayatLaporan  = $this->laporanService->getRiwayatUser($asn->id);
+        $laporanBulanIni = $riwayatLaporan->first(
+            fn($l) => $l->bulan == $bulan && $l->tahun == $tahun
+        );
+        $statusLaporan   = $laporanBulanIni?->status ?? 'DRAFT';
+
         if (!$skpTahunan) {
             return view('asn.bulanan.index', [
                 'hasData'          => false,
@@ -58,6 +69,9 @@ class BulananController extends Controller
                 'asn'              => $asn,
                 'rekapAbsensiList' => $rekapAbsensiList,
                 'bulanOptions'     => $bulanOptions,
+                'riwayatLaporan'   => $riwayatLaporan,
+                'laporanBulanIni'  => $laporanBulanIni,
+                'statusLaporan'    => $statusLaporan,
             ]);
         }
 
@@ -193,9 +207,7 @@ class BulananController extends Controller
         // 8. REKAP KERJA HARIAN DETAIL (untuk tabel baru)
         $rekapKerjaHarianDetail = $this->buildRekapKerjaHarianDetail($progresHarianList, $asn);
 
-        // 9. STATUS LAPORAN (dari database atau default)
-        // TODO: Buat tabel laporan_bulanan untuk tracking status
-        $statusLaporan = 'DRAFT'; // DRAFT, DIKIRIM, DISETUJUI, DITOLAK
+        // 9. STATUS LAPORAN — sudah diset di atas dari DB via laporanService
 
         return view('asn.bulanan.index', [
             'hasData'   => true,
@@ -224,6 +236,11 @@ class BulananController extends Controller
             // Rekap Absensi PUSAKA
             'rekapAbsensiList' => $rekapAbsensiList,
             'bulanOptions'     => $bulanOptions,
+
+            // Riwayat Laporan Bulanan Kinerja
+            'riwayatLaporan'  => $riwayatLaporan,
+            'laporanBulanIni' => $laporanBulanIni,
+            'statusLaporan'   => $statusLaporan,
         ]);
     }
 
@@ -254,141 +271,109 @@ class BulananController extends Controller
     }
 
     /**
+     * Revisi rekap absensi yang ditolak atasan
+     */
+    public function revisiRekapAbsensi(Request $request, int $id)
+    {
+        $request->validate([
+            'link_drive' => ['required', 'url', 'regex:/drive\.google\.com/'],
+        ], [
+            'link_drive.required' => 'Link Google Drive wajib diisi.',
+            'link_drive.url'      => 'Link harus berupa URL yang valid.',
+            'link_drive.regex'    => 'Link harus berasal dari Google Drive (drive.google.com).',
+        ]);
+
+        try {
+            $this->rekapService->revisi(auth()->id(), $id, $request->link_drive);
+
+            return redirect()
+                ->route('asn.bulanan.index')
+                ->with('success_absensi', 'Rekap absensi berhasil direvisi dan menunggu verifikasi ulang.')
+                ->withFragment('tab-absensi');
+
+        } catch (ValidationException $e) {
+            return redirect()
+                ->route('asn.bulanan.index')
+                ->withErrors($e->errors())
+                ->withInput()
+                ->withFragment('tab-absensi');
+        }
+    }
+
+    /**
      * Export laporan to PDF
      */
     public function exportPdf(Request $request)
     {
-        $asn = Auth::user();
-        $tahun = $request->input('tahun', now()->year);
-        $bulan = $request->input('bulan', now()->month);
+        $asn   = Auth::user();
+        $tahun = (int) $request->input('tahun', now()->year);
+        $bulan = (int) $request->input('bulan', now()->month);
 
-        // 1. GET SKP TAHUNAN
+        // Rencana Aksi Bulanan (konteks SKP)
         $skpTahunan = SkpTahunan::where('user_id', $asn->id)
             ->where('tahun', $tahun)
             ->first();
 
-        if (!$skpTahunan) {
-            return redirect()->back()->with('error', 'Data SKP Tahunan tidak ditemukan');
-        }
+        $rencanaAksi = $skpTahunan
+            ? RencanaAksiBulanan::whereHas('skpTahunanDetail', function ($q) use ($skpTahunan) {
+                    $q->where('skp_tahunan_id', $skpTahunan->id);
+                })
+                ->with(['skpTahunanDetail.indikatorKinerja'])
+                ->where('bulan', $bulan)
+                ->where('tahun', $tahun)
+                ->whereNotNull('rencana_aksi_bulanan')
+                ->get()
+            : collect();
 
-        // 2. GET RENCANA AKSI BULANAN
-        $rencanaAksi = RencanaAksiBulanan::whereHas('skpTahunanDetail', function($query) use ($skpTahunan) {
-                $query->where('skp_tahunan_id', $skpTahunan->id);
-            })
-            ->with(['skpTahunanDetail.indikatorKinerja'])
-            ->where('bulan', $bulan)
-            ->where('tahun', $tahun)
-            ->where('status', '!=', 'BELUM_DIISI')
-            ->get();
+        // Rekap harian via service (1 query, no N+1)
+        $rekapHarian = $this->laporanService->getRekapHarian($asn->id, $bulan, $tahun);
+        $summary     = $this->laporanService->getSummary($rekapHarian, $tahun, $bulan);
 
-        // 3. GET PROGRES HARIAN
-        $progresHarian = ProgresHarian::where('user_id', $asn->id)
-            ->whereYear('tanggal', $tahun)
-            ->whereMonth('tanggal', $bulan)
-            ->orderBy('tanggal', 'asc')
-            ->get();
-
-        // 4. BUILD REKAP PER HARI (untuk tabel)
-        $rekapPerHari = [];
-        $startDate = Carbon::create($tahun, $bulan, 1);
-        $endDate = $startDate->copy()->endOfMonth();
-
-        for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
-            $dateString = $date->format('Y-m-d');
-            $progresHariIni = $progresHarian->where('tanggal', $dateString);
-
-            $totalMenit = $progresHariIni->sum('durasi_menit');
-            $totalJam = $totalMenit / 60;
-            $countKh = $progresHariIni->where('tipe_progres', 'KINERJA_HARIAN')->count();
-            $countTla = $progresHariIni->where('tipe_progres', 'TUGAS_ATASAN')->count();
-
-            // Determine status
-            $status = 'EMPTY';
-            if ($progresHariIni->count() > 0) {
-                $hasBukti = $progresHariIni->where('status_bukti', 'ADA')->count() > 0;
-
-                if ($totalJam >= 7.5 && $hasBukti) {
-                    $status = 'GREEN';
-                } elseif ($totalJam < 7.5 && $hasBukti) {
-                    $status = 'YELLOW';
-                } else {
-                    $status = 'RED';
-                }
-            }
-
-            $rekapPerHari[] = [
-                'tanggal' => $date->format('d'),
-                'hari' => substr($date->translatedFormat('l'), 0, 3),
-                'total_jam' => $totalJam > 0 ? number_format($totalJam, 1) : '-',
-                'count_kh' => $countKh > 0 ? $countKh : '-',
-                'count_tla' => $countTla > 0 ? $countTla : '-',
-                'status' => $status,
-            ];
-        }
-
-        // 5. BUILD SUMMARY
-        $totalHariDalamBulan = $endDate->day;
-        $hariKerja = $progresHarian->unique('tanggal')->count();
-        $hariKosong = $totalHariDalamBulan - $hariKerja;
-
-        $hariGreen = collect($rekapPerHari)->where('status', 'GREEN')->count();
-        $hariYellow = collect($rekapPerHari)->where('status', 'YELLOW')->count();
-        $hariRed = collect($rekapPerHari)->where('status', 'RED')->count();
-
-        $totalKh = $progresHarian->where('tipe_progres', 'KINERJA_HARIAN')->count();
-        $totalTla = $progresHarian->where('tipe_progres', 'TUGAS_ATASAN')->count();
-        $totalDurasiMenit = $progresHarian->sum('durasi_menit');
-        $totalJamKerja = floor($totalDurasiMenit / 60);
-        $sisaMenit = $totalDurasiMenit % 60;
-
-        $avgJamPerHari = $hariKerja > 0 ? ($totalDurasiMenit / 60) / $hariKerja : 0;
-
-        $summary = [
-            'total_hari' => $totalHariDalamBulan,
-            'hari_kerja' => $hariKerja,
-            'hari_kosong' => $hariKosong,
-            'hari_green' => $hariGreen,
-            'hari_yellow' => $hariYellow,
-            'hari_red' => $hariRed,
-            'total_kh' => $totalKh,
-            'total_tla' => $totalTla,
-            'total_jam' => $totalJamKerja . ' jam ' . $sisaMenit . ' menit',
-            'avg_jam_per_hari' => $avgJamPerHari,
-        ];
-
-        // 6. GENERATE PDF
-        $periode = $this->getNamaBulan($bulan) . ' ' . $tahun;
+        $periode      = $this->getNamaBulan($bulan) . ' ' . $tahun;
         $tanggalCetak = Carbon::now()->locale('id')->isoFormat('D MMMM Y, HH:mm') . ' WIB';
 
         $pdf = \PDF::loadView('asn.laporan.pdf.bulanan', [
-            'asn' => $asn,
-            'periode' => $periode,
-            'rencanaAksi' => $rencanaAksi,
-            'rekapPerHari' => $rekapPerHari,
-            'summary' => $summary,
-            'tanggal_cetak' => $tanggalCetak,
+            'asn'          => $asn,
+            'periode'      => $periode,
+            'bulan'        => $bulan,
+            'tahun'        => $tahun,
+            'rencanaAksi'  => $rencanaAksi,
+            'rekapHarian'  => $rekapHarian,
+            'summary'      => $summary,
+            'tanggal_cetak'=> $tanggalCetak,
         ]);
 
-        $fileName = 'Laporan_Bulanan_' . $asn->name . '_' . $bulan . '_' . $tahun . '.pdf';
+        $pdf->setPaper('A4', 'landscape');
+
+        $fileName = 'Rekap_Bulanan_' . $asn->name . '_' . $periode . '_' . now()->format('YmdHis') . '.pdf';
 
         return $pdf->download($fileName);
     }
 
     /**
-     * Kirim laporan ke atasan
+     * Kirim laporan bulanan ke atasan.
+     * Generates/updates summary, lalu ubah status ke DIKIRIM.
      */
     public function kirimKeAtasan(Request $request)
     {
-        $asn = Auth::user();
-        $tahun = $request->input('tahun', now()->year);
-        $bulan = $request->input('bulan', now()->month);
+        $asn   = Auth::user();
+        $tahun = (int) $request->input('tahun', now()->year);
+        $bulan = (int) $request->input('bulan', now()->month);
 
-        // TODO: Implement notification to atasan
-        // Create laporan_bulanan record with status DIKIRIM
+        try {
+            $this->laporanService->kirimKeAtasan($asn->id, $bulan, $tahun);
 
-        return redirect()
-            ->route('asn.bulanan.index', ['tahun' => $tahun, 'bulan' => $bulan])
-            ->with('success', 'Laporan berhasil dikirim ke atasan');
+            return redirect()
+                ->route('asn.bulanan.index', ['tahun' => $tahun, 'bulan' => $bulan])
+                ->with('success_laporan', 'Laporan berhasil dikirim ke atasan dan menunggu persetujuan.')
+                ->withFragment('tab-riwayat');
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()
+                ->route('asn.bulanan.index', ['tahun' => $tahun, 'bulan' => $bulan])
+                ->withErrors($e->errors())
+                ->withFragment('tab-riwayat');
+        }
     }
 
     /**

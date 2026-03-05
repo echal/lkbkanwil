@@ -20,12 +20,23 @@ use App\Http\Controllers\Admin\IndikatorKinerjaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\RhkPimpinanController;
+use App\Http\Controllers\Admin\ImportAsnController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\MonitoringKakanwilController;
 
 // Redirect root to login
 Route::get('/', function () {
     return redirect()->route('login');
 });
+
+// ============================================================================
+// PUBLIC MONITORING — Tidak perlu login, dilindungi token key
+// GET /monitoring-kakanwil?key=<KAKANWIL_MONITOR_KEY>
+// ============================================================================
+Route::get('/monitoring-kakanwil', [MonitoringKakanwilController::class, 'index'])
+    ->name('monitoring.kakanwil');
+Route::get('/monitoring-kakanwil/clear-cache', [MonitoringKakanwilController::class, 'clearCache'])
+    ->name('monitoring.kakanwil.clear-cache');
 
 // Authentication Routes
 Route::middleware('guest')->group(function () {
@@ -116,6 +127,7 @@ Route::middleware('auth')->group(function () {
 
             // Rekap Absensi PUSAKA
             Route::post('/laporan/rekap-absensi', [BulananController::class, 'storeRekapAbsensi'])->name('laporan.rekap-absensi.store');
+            Route::post('/laporan/rekap-absensi/{id}/revisi', [BulananController::class, 'revisiRekapAbsensi'])->name('laporan.rekap-absensi.revisi');
         });
     });
 
@@ -134,6 +146,15 @@ Route::middleware('auth')->group(function () {
         // Approval/Persetujuan
         Route::get('/approval', [ApprovalController::class, 'index'])->name('approval.index');
         Route::get('/approval/{id}', [ApprovalController::class, 'show'])->name('approval.show');
+
+        // Rekap Absensi PUSAKA
+        Route::post('/approval/rekap-absensi/{id}/approve', [ApprovalController::class, 'approveRekap'])->name('approval.rekap-absensi.approve');
+        Route::post('/approval/rekap-absensi/{id}/reject',  [ApprovalController::class, 'rejectRekap'])->name('approval.rekap-absensi.reject');
+
+        // Laporan Bulanan Kinerja
+        Route::post('/approval/laporan-bulanan/{id}/approve', [ApprovalController::class, 'approveLaporan'])->name('approval.laporan-bulanan.approve');
+        Route::post('/approval/laporan-bulanan/{id}/tolak',   [ApprovalController::class, 'tolakLaporan'])->name('approval.laporan-bulanan.tolak');
+        Route::get('/approval/laporan-bulanan/{id}/pdf',      [ApprovalController::class, 'downloadPdfBawahan'])->name('approval.laporan-bulanan.pdf');
 
         // Harian Bawahan (TAHAP 5.1 - Monitoring Dashboard)
         Route::get('/harian-bawahan', [HarianBawahanController::class, 'index'])->name('harian-bawahan.index');
@@ -175,6 +196,12 @@ Route::middleware('auth')->group(function () {
 
         // RHK Pimpinan (Resource)
         Route::resource('rhk-pimpinan', RhkPimpinanController::class);
+
+        // Import ASN dari Excel
+        Route::get('/import-asn',                   [ImportAsnController::class, 'index'])           ->name('import-asn.index');
+        Route::get('/import-asn/template',          [ImportAsnController::class, 'downloadTemplate'])->name('import-asn.template');
+        Route::post('/import-asn/preview',          [ImportAsnController::class, 'preview'])         ->name('import-asn.preview');
+        Route::post('/import-asn/confirm',          [ImportAsnController::class, 'confirm'])         ->name('import-asn.confirm');
 
         // Dashboard Admin
         Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard.index');

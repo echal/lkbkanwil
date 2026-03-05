@@ -5,235 +5,136 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <title>Rekap Kinerja Bulanan - {{ $periode }}</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: "Times New Roman", Times, serif;
             font-size: 10pt;
             line-height: 1.4;
             color: #000;
-            padding: 20px 25px;
+            padding: 18px 22px;
         }
 
+        /* ── Header ─────────────────────────────────────── */
         .header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             border-bottom: 3px double #000;
-            padding-bottom: 12px;
+            padding-bottom: 10px;
         }
+        .header h1 { font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 1px; }
+        .header h2 { font-size: 11pt; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
+        .header h3 { font-size: 10.5pt; font-weight: bold; text-decoration: underline; margin-bottom: 4px; }
+        .header .periode { font-size: 10pt; font-weight: normal; }
 
-        .header h1 {
-            font-size: 13pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-            letter-spacing: 0.5px;
-        }
-
-        .header h2 {
-            font-size: 12pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-
-        .header h3 {
-            font-size: 11pt;
-            font-weight: bold;
-            text-decoration: underline;
-            margin-bottom: 6px;
-        }
-
-        .header .periode {
-            font-size: 10pt;
-            font-weight: normal;
-        }
-
+        /* ── Info ASN ───────────────────────────────────── */
         .info-box {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             border: 1px solid #000;
-            padding: 10px;
-            background-color: #f9f9f9;
+            padding: 8px 10px;
+            background: #f9f9f9;
         }
+        .info-table { width: 100%; border-collapse: collapse; }
+        .info-table td { padding: 2px 6px; font-size: 9pt; }
+        .info-table td:first-child { width: 110px; font-weight: bold; }
+        .info-table td:nth-child(2) { width: 10px; }
 
-        .info-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .info-table td {
-            padding: 3px 8px;
-            font-size: 9pt;
-        }
-
-        .info-table td:first-child {
-            width: 120px;
-            font-weight: bold;
-        }
-
-        .info-table td:nth-child(2) {
-            width: 12px;
-        }
-
+        /* ── Section title ──────────────────────────────── */
         .section-title {
-            font-size: 10pt;
+            font-size: 9.5pt;
             font-weight: bold;
-            margin-top: 15px;
-            margin-bottom: 8px;
-            padding: 5px 10px;
-            background-color: #333;
+            margin-top: 12px;
+            margin-bottom: 6px;
+            padding: 4px 10px;
+            background: #333;
             color: #fff;
             text-transform: uppercase;
         }
 
+        /* ── Tabel utama ─────────────────────────────────── */
         .content-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             font-size: 8pt;
         }
-
         .content-table th,
         .content-table td {
-            border: 1px solid #000;
-            padding: 4px 3px;
+            border: 1px solid #555;
+            padding: 3px 2px;
             text-align: center;
+            vertical-align: middle;
         }
-
         .content-table th {
-            background-color: #e8e8e8;
+            background: #e0e0e0;
             font-weight: bold;
             text-transform: uppercase;
             font-size: 7pt;
             line-height: 1.2;
         }
 
-        .content-table td.center {
-            text-align: center;
-        }
+        /* ── Status cell colors ──────────────────────────── */
+        .s-green  { background: #d4edda; font-weight: bold; font-size: 7pt; }
+        .s-yellow { background: #fff3cd; font-weight: bold; font-size: 7pt; }
+        .s-red    { background: #f8d7da; font-weight: bold; font-size: 7pt; }
+        .s-libur  { background: #e2e8f0; color: #64748b; font-size: 7pt; }
+        .s-empty  { background: #f5f5f5; color: #aaa; font-size: 7pt; }
 
-        .content-table td.left {
-            text-align: left;
-        }
-
-        /* Status colors */
-        .status-green {
-            background-color: #d4edda;
-            font-weight: bold;
-        }
-
-        .status-yellow {
-            background-color: #fff3cd;
-            font-weight: bold;
-        }
-
-        .status-red {
-            background-color: #f8d7da;
-            font-weight: bold;
-        }
-
-        .status-empty {
-            background-color: #f5f5f5;
-            color: #999;
-        }
-
+        /* ── Rencana Aksi ────────────────────────────────── */
         .rencana-box {
-            margin-bottom: 15px;
-            padding: 10px;
+            margin-bottom: 12px;
+            padding: 8px 10px;
             border: 1px solid #ccc;
-            background-color: #fffbf0;
+            background: #fffbf0;
         }
-
-        .rencana-box h4 {
-            font-size: 9pt;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
+        .rencana-box h4 { font-size: 8.5pt; font-weight: bold; margin-bottom: 4px; }
         .rencana-item {
-            font-size: 8pt;
-            margin-bottom: 4px;
-            padding: 4px;
+            font-size: 7.5pt;
+            margin-bottom: 3px;
+            padding: 3px 4px;
             border-left: 3px solid #007bff;
-            background-color: #fff;
+            background: #fff;
         }
 
+        /* ── Summary ─────────────────────────────────────── */
         .summary-box {
-            margin-top: 15px;
-            padding: 12px;
+            margin-top: 12px;
+            padding: 10px;
             border: 2px solid #000;
-            background-color: #f5f5f5;
+            background: #f5f5f5;
         }
-
         .summary-box h4 {
-            font-size: 10pt;
+            font-size: 9.5pt;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             text-decoration: underline;
         }
+        .summary-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+        .summary-table td { padding: 3px 6px; border-bottom: 1px dashed #ccc; }
+        .summary-table td:first-child { width: 38%; font-weight: bold; }
+        .summary-table td:nth-child(2) { width: 10px; }
 
-        .summary-grid {
-            display: table;
-            width: 100%;
-        }
+        /* ── Tanda tangan ────────────────────────────────── */
+        .signature-section { margin-top: 24px; }
+        .signature-box { float: right; width: 200px; text-align: center; font-size: 9pt; }
+        .signature-space { height: 55px; }
+        .signature-name { font-weight: bold; text-decoration: underline; }
 
-        .summary-row {
-            display: table-row;
-        }
-
-        .summary-cell {
-            display: table-cell;
-            padding: 4px 8px;
-            font-size: 9pt;
-            border-bottom: 1px dashed #ccc;
-        }
-
-        .summary-cell:first-child {
-            width: 40%;
-            font-weight: bold;
-        }
-
-        .summary-cell:nth-child(2) {
-            width: 10px;
-        }
-
-        .signature-section {
-            margin-top: 30px;
-        }
-
-        .signature-box {
-            float: right;
-            width: 220px;
-            text-align: center;
-        }
-
-        .signature-space {
-            height: 60px;
-        }
-
-        .signature-name {
-            font-weight: bold;
-            text-decoration: underline;
-        }
-
+        /* ── Footer ──────────────────────────────────────── */
         .footer {
             clear: both;
-            margin-top: 60px;
+            margin-top: 50px;
             text-align: center;
-            font-size: 8pt;
+            font-size: 7.5pt;
             color: #666;
             border-top: 1px solid #ccc;
-            padding-top: 8px;
+            padding-top: 6px;
         }
     </style>
 </head>
 <body>
 
-    <!-- Header Dokumen -->
+    {{-- Header --}}
     <div class="header">
         <h1>KEMENTERIAN AGAMA REPUBLIK INDONESIA</h1>
         <h2>KANWIL KEMENTERIAN AGAMA PROVINSI SULAWESI BARAT</h2>
@@ -241,170 +142,149 @@
         <p class="periode">Periode: {{ $periode }}</p>
     </div>
 
-    <!-- Informasi ASN -->
+    {{-- Informasi ASN --}}
     <div class="info-box">
         <table class="info-table">
             <tr>
-                <td>Nama ASN</td>
-                <td>:</td>
-                <td>{{ $asn->name }}</td>
-                <td style="width: 120px; font-weight: bold;">NIP</td>
-                <td style="width: 12px;">:</td>
+                <td>Nama ASN</td><td>:</td><td>{{ $asn->name }}</td>
+                <td style="width:110px;font-weight:bold;">NIP</td><td style="width:10px;">:</td>
                 <td>{{ $asn->nip ?? '-' }}</td>
             </tr>
             <tr>
-                <td>Jabatan</td>
-                <td>:</td>
-                <td>{{ $asn->jabatan ?? '-' }}</td>
-                <td style="font-weight: bold;">Unit Kerja</td>
-                <td>:</td>
+                <td>Jabatan</td><td>:</td><td>{{ $asn->jabatan ?? '-' }}</td>
+                <td style="font-weight:bold;">Unit Kerja</td><td>:</td>
                 <td>{{ $asn->unitKerja->nama_unit ?? '-' }}</td>
             </tr>
         </table>
     </div>
 
-    <!-- Rencana Aksi Bulanan (Context) -->
+    {{-- Rencana Aksi Bulanan --}}
     @if($rencanaAksi->isNotEmpty())
     <div class="rencana-box">
         <h4>RENCANA AKSI BULAN {{ strtoupper($periode) }}</h4>
         @foreach($rencanaAksi as $rencana)
             <div class="rencana-item">
-                <strong>{{ $rencana->skpTahunanDetail->indikatorKinerja->nama_indikator ?? '-' }}</strong>
-                <br>
+                <strong>{{ $rencana->skpTahunanDetail->indikatorKinerja->nama_indikator ?? '-' }}</strong><br>
                 {{ $rencana->rencana_aksi_bulanan }}
-                <br>
-                <em style="color: #666;">Target: {{ $rencana->target_bulanan }} {{ $rencana->satuan_target }}</em>
+                <br><em style="color:#666;">Target: {{ $rencana->target_bulanan }} {{ $rencana->satuan_target }}</em>
             </div>
         @endforeach
     </div>
     @endif
 
-    <!-- Tabel Rekap Harian -->
+    {{-- Tabel Rekap Per Hari --}}
     <div class="section-title">Rekap Kinerja Per Hari</div>
 
     <table class="content-table">
         <thead>
             <tr>
-                <th style="width: 35px;">TGL</th>
-                <th style="width: 40px;">HARI</th>
-                <th style="width: 70px;">TOTAL<br>JAM</th>
-                <th style="width: 45px;">KH</th>
-                <th style="width: 45px;">TLA</th>
-                <th style="width: 80px;">STATUS</th>
-                <th style="width: 35px;">TGL</th>
-                <th style="width: 40px;">HARI</th>
-                <th style="width: 70px;">TOTAL<br>JAM</th>
-                <th style="width: 45px;">KH</th>
-                <th style="width: 45px;">TLA</th>
-                <th style="width: 80px;">STATUS</th>
+                <th style="width:30px;">TGL</th>
+                <th style="width:34px;">HARI</th>
+                <th style="width:62px;">TOTAL JAM</th>
+                <th style="width:38px;">KH</th>
+                <th style="width:38px;">TLA</th>
+                <th style="width:72px;">STATUS</th>
+                <th style="width:30px;">TGL</th>
+                <th style="width:34px;">HARI</th>
+                <th style="width:62px;">TOTAL JAM</th>
+                <th style="width:38px;">KH</th>
+                <th style="width:38px;">TLA</th>
+                <th style="width:72px;">STATUS</th>
             </tr>
         </thead>
         <tbody>
-            @php
-                $chunks = array_chunk($rekapPerHari, 2);
-            @endphp
+            @php $chunks = array_chunk($rekapHarian, 2); @endphp
             @foreach($chunks as $chunk)
             <tr>
                 @foreach($chunk as $hari)
-                    <td class="center">{{ $hari['tanggal'] }}</td>
-                    <td class="center">{{ $hari['hari'] }}</td>
-                    <td class="center">{{ $hari['total_jam'] }}</td>
-                    <td class="center">{{ $hari['count_kh'] }}</td>
-                    <td class="center">{{ $hari['count_tla'] }}</td>
-                    <td class="status-{{ strtolower($hari['status']) }}">
-                        @if($hari['status'] === 'GREEN')
-                            LENGKAP
-                        @elseif($hari['status'] === 'YELLOW')
-                            < 7.5 JAM
-                        @elseif($hari['status'] === 'RED')
-                            BELUM BUKTI
-                        @else
-                            -
-                        @endif
-                    </td>
+                    @php
+                        $sc = $hari['status_code'];
+                        $tdClass = match($sc) {
+                            'GREEN'  => 's-green',
+                            'YELLOW' => 's-yellow',
+                            'RED'    => 's-red',
+                            'LIBUR'  => 's-libur',
+                            default  => 's-empty',
+                        };
+                    @endphp
+                    <td>{{ $hari['tanggal'] }}</td>
+                    <td>{{ $hari['hari'] }}</td>
+                    <td>{{ $hari['total_jam'] }}</td>
+                    <td>{{ $hari['kh'] > 0 ? $hari['kh'] : '-' }}</td>
+                    <td>{{ $hari['tla'] > 0 ? $hari['tla'] : '-' }}</td>
+                    <td class="{{ $tdClass }}">{{ $hari['status'] }}</td>
                 @endforeach
                 @if(count($chunk) < 2)
-                    <td colspan="6" class="status-empty">-</td>
+                    <td colspan="6" class="s-empty">-</td>
                 @endif
             </tr>
             @endforeach
         </tbody>
     </table>
 
-    <!-- Ringkasan Bulanan -->
+    {{-- Ringkasan Bulanan --}}
     <div class="summary-box">
         <h4>RINGKASAN KINERJA BULAN {{ strtoupper($periode) }}</h4>
-        <div class="summary-grid">
-            <div class="summary-row">
-                <div class="summary-cell">Total Hari dalam Bulan</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">{{ $summary['total_hari'] }} hari</div>
-                <div class="summary-cell">Total Kinerja Harian (KH)</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">{{ $summary['total_kh'] }} kegiatan</div>
-            </div>
-            <div class="summary-row">
-                <div class="summary-cell">Hari Kerja (Ada Input)</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">{{ $summary['hari_kerja'] }} hari</div>
-                <div class="summary-cell">Total Tugas Langsung Atasan (TLA)</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">{{ $summary['total_tla'] }} kegiatan</div>
-            </div>
-            <div class="summary-row">
-                <div class="summary-cell">Hari Kosong (Tidak Ada Input)</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">{{ $summary['hari_kosong'] }} hari</div>
-                <div class="summary-cell">Total Durasi Kerja Bulan Ini</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">{{ $summary['total_jam'] }}</div>
-            </div>
-            <div class="summary-row">
-                <div class="summary-cell">Hari LENGKAP (≥ 7.5 jam + bukti)</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell" style="color: #155724; font-weight: bold;">{{ $summary['hari_green'] }} hari</div>
-                <div class="summary-cell">Rata-rata Jam Kerja per Hari</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">{{ number_format($summary['avg_jam_per_hari'], 1) }} jam</div>
-            </div>
-            <div class="summary-row">
-                <div class="summary-cell">Hari KURANG (< 7.5 jam)</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell" style="color: #856404; font-weight: bold;">{{ $summary['hari_yellow'] }} hari</div>
-                <div class="summary-cell">Tingkat Kepatuhan</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell">
+        <table class="summary-table">
+            <tr>
+                <td>Total Hari dalam Bulan</td><td>:</td>
+                <td>{{ $summary['total_hari'] }} hari</td>
+                <td style="width:36%;font-weight:bold;">Total Kinerja Harian (KH)</td><td style="width:10px;">:</td>
+                <td>{{ $summary['total_kh'] }} kegiatan</td>
+            </tr>
+            <tr>
+                <td>Hari Kerja (Ada Input)</td><td>:</td>
+                <td>{{ $summary['hari_kerja'] }} hari</td>
+                <td style="font-weight:bold;">Total Tugas Langsung Atasan (TLA)</td><td>:</td>
+                <td>{{ $summary['total_tla'] }} kegiatan</td>
+            </tr>
+            <tr>
+                <td>Hari Kosong (Tidak Ada Input)</td><td>:</td>
+                <td>{{ $summary['hari_kosong'] }} hari</td>
+                <td style="font-weight:bold;">Total Durasi Kerja Bulan Ini</td><td>:</td>
+                <td>{{ $summary['total_jam'] }}</td>
+            </tr>
+            <tr>
+                <td>Hari LENGKAP (≥ 7.5 jam + bukti)</td><td>:</td>
+                <td style="color:#155724;font-weight:bold;">{{ $summary['hari_green'] }} hari</td>
+                <td style="font-weight:bold;">Rata-rata Jam Kerja per Hari</td><td>:</td>
+                <td>{{ $summary['avg_jam'] }} jam</td>
+            </tr>
+            <tr>
+                <td>Hari KURANG (&lt; 7.5 jam)</td><td>:</td>
+                <td style="color:#856404;font-weight:bold;">{{ $summary['hari_yellow'] }} hari</td>
+                <td style="font-weight:bold;">Tingkat Kepatuhan</td><td>:</td>
+                <td>
                     @php
-                        $kepatuhan = $summary['total_hari'] > 0 ? ($summary['hari_green'] / $summary['total_hari']) * 100 : 0;
+                        $pct = $summary['total_hari'] > 0
+                            ? number_format(($summary['hari_green'] / $summary['total_hari']) * 100, 1)
+                            : '0.0';
                     @endphp
-                    {{ number_format($kepatuhan, 1) }}%
-                </div>
-            </div>
-            <div class="summary-row">
-                <div class="summary-cell">Hari BELUM UPLOAD BUKTI</div>
-                <div class="summary-cell">:</div>
-                <div class="summary-cell" style="color: #721c24; font-weight: bold;">{{ $summary['hari_red'] }} hari</div>
-                <div class="summary-cell"></div>
-                <div class="summary-cell"></div>
-                <div class="summary-cell"></div>
-            </div>
-        </div>
+                    {{ $pct }}%
+                </td>
+            </tr>
+            <tr>
+                <td>Hari BELUM UPLOAD BUKTI</td><td>:</td>
+                <td style="color:#721c24;font-weight:bold;">{{ $summary['hari_red'] }} hari</td>
+                <td></td><td></td><td></td>
+            </tr>
+        </table>
     </div>
 
-    <!-- Tanda Tangan -->
+    {{-- Tanda Tangan --}}
     <div class="signature-section">
         <div class="signature-box">
-            <p style="margin-bottom: 5px;">{{ now()->locale('id')->isoFormat('D MMMM Y') }}</p>
-            <p style="font-weight: bold; margin-bottom: 5px;">Yang Melaporkan,</p>
+            <p style="margin-bottom:4px;">{{ now()->locale('id')->isoFormat('D MMMM Y') }}</p>
+            <p style="font-weight:bold;margin-bottom:4px;">Yang Melaporkan,</p>
             <div class="signature-space"></div>
             <p class="signature-name">{{ $asn->name }}</p>
-            <p style="font-size: 9pt;">NIP. {{ $asn->nip }}</p>
+            <p style="font-size:8.5pt;">NIP. {{ $asn->nip ?? '-' }}</p>
         </div>
     </div>
 
-    <!-- Footer -->
+    {{-- Footer --}}
     <div class="footer">
-        <p>Dicetak melalui Sistem Informasi Kinerja ASN</p>
+        <p>Dicetak melalui Sistem Informasi Kinerja ASN — esaraku</p>
         <p>Kanwil Kementerian Agama Provinsi Sulawesi Barat</p>
         <p>Tanggal Cetak: {{ $tanggal_cetak }}</p>
     </div>

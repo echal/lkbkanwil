@@ -67,9 +67,9 @@
                 <select name="unit_kerja_id" id="unit_kerja_id"
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent @error('unit_kerja_id') border-red-500 @enderror">
                     <option value="">-- Tidak Ada / Pimpinan Tertinggi --</option>
-                    @foreach($units as $unit)
-                        <option value="{{ $unit->id }}" {{ old('unit_kerja_id') == $unit->id ? 'selected' : '' }}>
-                            {{ $unit->kode_unit }} - {{ $unit->nama_unit }}
+                    @foreach($units as $opt)
+                        <option value="{{ $opt['id'] }}" {{ old('unit_kerja_id') == $opt['id'] ? 'selected' : '' }}>
+                            {{ $opt['label'] }}
                         </option>
                     @endforeach
                 </select>

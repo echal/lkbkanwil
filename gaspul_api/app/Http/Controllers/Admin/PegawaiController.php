@@ -116,7 +116,7 @@ class PegawaiController extends Controller
 
     public function create()
     {
-        $units = UnitKerja::aktif()->get();
+        $units = UnitKerja::toDropdownFlat(); // dropdown bertingkat
         return view('admin.pegawai.tambah', compact('units'));
     }
 
@@ -142,7 +142,7 @@ class PegawaiController extends Controller
     public function edit($id)
     {
         $pegawai = User::findOrFail($id);
-        $units = UnitKerja::aktif()->get();
+        $units = UnitKerja::toDropdownFlat(); // dropdown bertingkat
         $atasanList = User::whereIn('role', ['ATASAN'])
             ->where('status_pegawai', 'AKTIF')
             ->where('id', '!=', $id)

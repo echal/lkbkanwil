@@ -54,6 +54,29 @@
             </div>
 
             <div>
+                <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-2">
+                    Unit Induk
+                    <span class="text-gray-400 text-xs font-normal">(opsional — kosongkan jika unit ini adalah unit root/level 1)</span>
+                </label>
+                <select name="parent_id" id="parent_id"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent @error('parent_id') border-red-500 @enderror">
+                    <option value="">— Tidak Ada (Unit Root / Level 1) —</option>
+                    @foreach($parentOptions as $opt)
+                        <option value="{{ $opt['id'] }}"
+                            {{ old('parent_id', $unit->parent_id) == $opt['id'] ? 'selected' : '' }}>
+                            {{ $opt['label'] }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('parent_id')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+                @if($unit->level > 1)
+                    <p class="mt-1 text-xs text-gray-400">Level saat ini: {{ $unit->level }}. Akan dihitung ulang otomatis saat disimpan.</p>
+                @endif
+            </div>
+
+            <div>
                 <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status <span class="text-red-500">*</span></label>
                 <select name="status" id="status" required
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent @error('status') border-red-500 @enderror">

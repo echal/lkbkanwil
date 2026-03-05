@@ -253,16 +253,21 @@ class SkpTahunanController extends Controller
             ]);
 
             $message = 'SKP Tahunan berhasil diajukan ke ' . $user->atasan->name . ' untuk persetujuan';
-        } else {
-            // CASE 2: User TIDAK punya atasan (puncak hierarki) → auto final approve
+        } elseif ($user->role === 'ATASAN' && is_null($user->atasan_id)) {
+            // CASE 2: Murni puncak hierarki (role ATASAN, atasan_id = NULL) → auto approve
             $skpTahunan->update([
                 'status' => 'DISETUJUI',
-                'approved_by' => null, // Tidak ada approver (puncak hierarki)
+                'approved_by' => null,
                 'approved_at' => now(),
                 'catatan_atasan' => 'Otomatis disetujui (Puncak Hierarki)',
             ]);
 
             $message = 'SKP Tahunan berhasil disetujui otomatis (Anda adalah puncak hierarki)';
+        } else {
+            // CASE 3: ASN atau role lain tanpa atasan_id → BLOKIR, konfigurasi belum benar
+            return redirect()
+                ->route('asn.skp-tahunan.index', ['tahun' => $skpTahunan->tahun])
+                ->with('error', 'Struktur atasan belum dikonfigurasi. Hubungi admin untuk mengatur atasan langsung Anda sebelum mengajukan SKP.');
         }
 
         return redirect()

@@ -42,8 +42,8 @@ class RekapKinerjaCetakController extends Controller
         $startDate = Carbon::now()->setISODate($year, $week)->startOfWeek();
         $endDate = Carbon::now()->setISODate($year, $week)->endOfWeek();
 
-        // Get rekap data (reuse query from TAHAP 5.2)
-        $rekap_list = $this->getRekapMingguan($atasan->unit_kerja_id, $week, $year);
+        // Get rekap data berdasarkan atasan_id
+        $rekap_list = $this->getRekapMingguan($atasan->id, $week, $year);
 
         // Calculate summary statistics
         $summary = $this->calculateSummary($rekap_list);
@@ -86,8 +86,8 @@ class RekapKinerjaCetakController extends Controller
         // Get month name
         $monthName = Carbon::create($year, $month, 1)->locale('id')->isoFormat('MMMM');
 
-        // Get rekap data (reuse query from TAHAP 5.2)
-        $rekap_list = $this->getRekapBulanan($atasan->unit_kerja_id, $month, $year);
+        // Get rekap data berdasarkan atasan_id
+        $rekap_list = $this->getRekapBulanan($atasan->id, $month, $year);
 
         // Calculate summary statistics
         $summary = $this->calculateSummary($rekap_list);
@@ -117,7 +117,7 @@ class RekapKinerjaCetakController extends Controller
     /**
      * Get rekap mingguan (REUSE from RekapKinerjaController)
      */
-    private function getRekapMingguan($unit_kerja_id, $week, $year)
+    private function getRekapMingguan($atasan_id, $week, $year)
     {
         // Calculate date range for the week (ISO 8601 week)
         $startDate = Carbon::now()->setISODate($year, $week)->startOfWeek();
@@ -132,7 +132,7 @@ class RekapKinerjaCetakController extends Controller
                 $join->on('u.id', '=', 'ph.user_id')
                      ->whereBetween('ph.tanggal', [$startDate->toDateString(), $endDate->toDateString()]);
             })
-            ->where('u.unit_kerja_id', $unit_kerja_id)
+            ->where('u.atasan_id', $atasan_id)
             ->where('u.role', 'ASN')
             ->where('u.status_pegawai', 'AKTIF')
             ->select(
@@ -167,7 +167,7 @@ class RekapKinerjaCetakController extends Controller
     /**
      * Get rekap bulanan (REUSE from RekapKinerjaController)
      */
-    private function getRekapBulanan($unit_kerja_id, $month, $year)
+    private function getRekapBulanan($atasan_id, $month, $year)
     {
         // Calculate date range for the month
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
@@ -182,7 +182,7 @@ class RekapKinerjaCetakController extends Controller
                 $join->on('u.id', '=', 'ph.user_id')
                      ->whereBetween('ph.tanggal', [$startDate->toDateString(), $endDate->toDateString()]);
             })
-            ->where('u.unit_kerja_id', $unit_kerja_id)
+            ->where('u.atasan_id', $atasan_id)
             ->where('u.role', 'ASN')
             ->where('u.status_pegawai', 'AKTIF')
             ->select(

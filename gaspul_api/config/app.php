@@ -68,6 +68,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Monitoring Kakanwil Token Key
+    |--------------------------------------------------------------------------
+    |
+    | Token sederhana untuk proteksi halaman monitoring publik Kakanwil.
+    | Atur di .env: KAKANWIL_MONITOR_KEY=isi_dengan_key_rahasia
+    |
+    */
+
+    'kakanwil_monitor_key' => env('KAKANWIL_MONITOR_KEY', null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

@@ -24,20 +24,21 @@ class HolidayHelper
             // Isra Miraj
             '2026-03-01' => 'Isra Miraj Nabi Muhammad SAW',
 
+            // Idul Fitri (1 Syawal 1447 H — perkiraan 20-21 Maret 2026)
+            '2026-03-20' => 'Hari Raya Idul Fitri 1447 H',
+            '2026-03-21' => 'Hari Raya Idul Fitri 1447 H',
+
+            // Cuti Bersama Idul Fitri (perkiraan)
+            '2026-03-18' => 'Cuti Bersama Idul Fitri',
+            '2026-03-19' => 'Cuti Bersama Idul Fitri',
+            '2026-03-23' => 'Cuti Bersama Idul Fitri',
+            '2026-03-24' => 'Cuti Bersama Idul Fitri',
+
             // Nyepi
             '2026-03-22' => 'Hari Suci Nyepi (Tahun Baru Saka 1948)',
 
             // Wafat Yesus Kristus
             '2026-04-03' => 'Wafat Yesus Kristus',
-
-            // Idul Fitri
-            '2026-04-19' => 'Hari Raya Idul Fitri 1447 H',
-            '2026-04-20' => 'Hari Raya Idul Fitri 1447 H',
-
-            // Cuti bersama Idul Fitri (estimate)
-            '2026-04-17' => 'Cuti Bersama Idul Fitri',
-            '2026-04-21' => 'Cuti Bersama Idul Fitri',
-            '2026-04-22' => 'Cuti Bersama Idul Fitri',
 
             // Hari Buruh
             '2026-05-01' => 'Hari Buruh Internasional',
@@ -51,11 +52,11 @@ class HolidayHelper
             // Pancasila
             '2026-06-01' => 'Hari Lahir Pancasila',
 
-            // Idul Adha
-            '2026-06-27' => 'Hari Raya Idul Adha 1447 H',
+            // Idul Adha (1447 H — perkiraan sekitar 28-29 Mei 2026)
+            '2026-05-28' => 'Hari Raya Idul Adha 1447 H',
 
             // Tahun Baru Islam
-            '2026-07-18' => 'Tahun Baru Islam 1448 H',
+            '2026-07-17' => 'Tahun Baru Islam 1448 H',
 
             // Kemerdekaan RI
             '2026-08-17' => 'Hari Kemerdekaan RI',
