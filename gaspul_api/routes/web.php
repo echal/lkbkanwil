@@ -38,6 +38,15 @@ Route::get('/monitoring-kakanwil', [MonitoringKakanwilController::class, 'index'
 Route::get('/monitoring-kakanwil/clear-cache', [MonitoringKakanwilController::class, 'clearCache'])
     ->name('monitoring.kakanwil.clear-cache');
 
+// ============================================================================
+// Dashboard TV Publik — Kankemenag Kabupaten Pasangkayu
+// GET /monitoring-tv/pasangkayu?token=PASANGKAYU2026TV
+// ============================================================================
+Route::get('/monitoring-tv/pasangkayu', [\App\Http\Controllers\MonitoringPasangkayuController::class, 'index'])
+    ->name('monitoring.pasangkayu');
+Route::get('/monitoring-tv/pasangkayu/clear-cache', [\App\Http\Controllers\MonitoringPasangkayuController::class, 'clearCache'])
+    ->name('monitoring.pasangkayu.clear-cache');
+
 // Authentication Routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');

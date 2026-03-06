@@ -7,6 +7,23 @@
     <title>Dashboard Monitoring eSARAKu {{ $tahun }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        .table-container {
+            max-height: 520px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .table-container::-webkit-scrollbar { width: 5px; }
+        .table-container::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .table-monitoring { width: 100%; border-collapse: collapse; }
+        .table-monitoring thead th {
+            position: sticky;
+            top: 0;
+            background: #f9fafb;
+            z-index: 10;
+            border-bottom: 2px solid #e5e7eb;
+        }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
@@ -267,9 +284,9 @@
             <h3 class="text-sm font-semibold text-gray-700">Detail Kepatuhan per Unit Kerja</h3>
             <span class="text-xs text-gray-400">Diurutkan: Kepatuhan Tertinggi → Terendah</span>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+        <div class="table-container">
+            <table class="table-monitoring text-sm">
+                <thead class="text-xs text-gray-500 uppercase">
                     <tr>
                         <th class="px-4 py-3 text-center w-10">#</th>
                         <th class="px-4 py-3 text-left">Unit Kerja</th>

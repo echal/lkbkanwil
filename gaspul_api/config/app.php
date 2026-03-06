@@ -76,7 +76,8 @@ return [
     |
     */
 
-    'kakanwil_monitor_key' => env('KAKANWIL_MONITOR_KEY', null),
+    'kakanwil_monitor_key'  => env('KAKANWIL_MONITOR_KEY', null),
+    'pasangkayu_tv_token'   => env('PASANGKAYU_TV_TOKEN', null),
 
     /*
     |--------------------------------------------------------------------------
