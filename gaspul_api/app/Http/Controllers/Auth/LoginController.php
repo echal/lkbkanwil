@@ -36,6 +36,17 @@ class LoginController extends Controller
 
             $user = Auth::user();
 
+            // Blokir akun nonaktif — logout paksa setelah attempt berhasil
+            if ($user->status_pegawai === 'NONAKTIF') {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'email' => 'Akun Anda sudah tidak aktif. Hubungi administrator.',
+                ])->withInput($request->only('email'));
+            }
+
             // Store user data in session (for compatibility)
             session(['user' => $user]);
 

@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    // Phase I.2 — e_SARAku Helpdesk SSO Integration
+    'helpdesk' => [
+        'url' => env('HELPDESK_URL', 'http://localhost/esaraku_helpdesk/public'),
+    ],
+
 ];

@@ -2,12 +2,15 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Api\HelpdeskTokenController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Asn\HarianController;
 use App\Http\Controllers\Asn\RencanaKerjaController;
 use App\Http\Controllers\Asn\SkpTahunanController;
 use App\Http\Controllers\Asn\BulananController;
 use App\Http\Controllers\Asn\LaporanCetakController;
+use App\Http\Controllers\Asn\TutorialController;
+use App\Http\Controllers\Asn\CutiController;
 use App\Http\Controllers\Atasan\ApprovalController;
 use App\Http\Controllers\Atasan\KinerjaBawahanController;
 use App\Http\Controllers\Atasan\SkpTahunanAtasanController;
@@ -17,10 +20,13 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UnitController;
 use App\Http\Controllers\Admin\SasaranKegiatanController;
 use App\Http\Controllers\Admin\IndikatorKinerjaController;
+use App\Http\Controllers\Admin\IndikatorUnitKerjaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\RhkPimpinanController;
 use App\Http\Controllers\Admin\ImportAsnController;
+use App\Http\Controllers\Admin\RotasiJabatanController;
+use App\Http\Controllers\Admin\KalenderLiburKhususController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\MonitoringKakanwilController;
 
@@ -37,6 +43,14 @@ Route::get('/monitoring-kakanwil', [MonitoringKakanwilController::class, 'index'
     ->name('monitoring.kakanwil');
 Route::get('/monitoring-kakanwil/clear-cache', [MonitoringKakanwilController::class, 'clearCache'])
     ->name('monitoring.kakanwil.clear-cache');
+Route::get('/monitoring-kakanwil/asn-aktif-detail', [MonitoringKakanwilController::class, 'asnAktifDetail'])
+    ->name('monitoring.kakanwil.asn-aktif-detail');
+Route::get('/monitoring-kakanwil/asn-aktif-export', [MonitoringKakanwilController::class, 'exportExcel'])
+    ->name('monitoring.kakanwil.asn-aktif-export');
+Route::get('/monitoring-kakanwil/asn-belum-isi', [MonitoringKakanwilController::class, 'asnBelumIsiPerUnit'])
+    ->name('monitoring.kakanwil.asn-belum-isi');
+Route::get('/monitoring-kakanwil/skp-detail', [MonitoringKakanwilController::class, 'skpDetail'])
+    ->name('monitoring.kakanwil.skp-detail');
 
 // ============================================================================
 // Dashboard TV Publik — Kankemenag Kabupaten Pasangkayu
@@ -47,10 +61,53 @@ Route::get('/monitoring-tv/pasangkayu', [\App\Http\Controllers\MonitoringPasangk
 Route::get('/monitoring-tv/pasangkayu/clear-cache', [\App\Http\Controllers\MonitoringPasangkayuController::class, 'clearCache'])
     ->name('monitoring.pasangkayu.clear-cache');
 
+// ============================================================================
+// Dashboard TV Publik — Kankemenag Kabupaten Mamuju Tengah
+// GET /monitoring-tv/mamuju-tengah?token=MATENGTV2026
+// ============================================================================
+Route::get('/monitoring-tv/mamuju-tengah', [\App\Http\Controllers\MonitoringMamujuTengahController::class, 'index'])
+    ->name('monitoring.mamuju-tengah');
+Route::get('/monitoring-tv/mamuju-tengah/clear-cache', [\App\Http\Controllers\MonitoringMamujuTengahController::class, 'clearCache'])
+    ->name('monitoring.mamuju-tengah.clear-cache');
+
+// ============================================================================
+// Dashboard Monitoring — Bidang Bimbingan Masyarakat Islam
+// GET /monitoring-tv/bimas-islam?token=BIMASISLAM2026
+// ============================================================================
+Route::get('/monitoring-tv/bimas-islam', [\App\Http\Controllers\MonitoringBimasIslamController::class, 'index'])
+    ->name('monitoring.bimas-islam');
+Route::get('/monitoring-tv/bimas-islam/clear-cache', [\App\Http\Controllers\MonitoringBimasIslamController::class, 'clearCache'])
+    ->name('monitoring.bimas-islam.clear-cache');
+
+// ============================================================================
+// Dashboard Kepatuhan ASN — Kankemenag Kabupaten Mamasa
+// GET /monitoring-tv/mamasa?token=MAMASA2026TV
+// ============================================================================
+Route::get('/monitoring-tv/mamasa', [\App\Http\Controllers\MonitoringMamasaController::class, 'index'])
+    ->name('monitoring.mamasa');
+Route::get('/monitoring-tv/mamasa/clear-cache', [\App\Http\Controllers\MonitoringMamasaController::class, 'clearCache'])
+    ->name('monitoring.mamasa.clear-cache');
+Route::get('/monitoring-tv/mamasa/asn-detail/{id}', [\App\Http\Controllers\MonitoringMamasaController::class, 'asnDetail'])
+    ->name('monitoring.mamasa.asn-detail');
+
+// ============================================================================
+// HELPDESK SSO — Dipanggil via fetch() dari floating button (same-origin, web session)
+// POST /api/helpdesk-token  → JSON { token, helpdesk_url }
+// Route ini di web.php agar punya session middleware (auth:web dapat membaca session)
+// ============================================================================
+Route::middleware(['auth', 'role:ASN', 'throttle:10,1'])
+    ->post('/api/helpdesk-token', [HelpdeskTokenController::class, 'issue'])
+    ->name('helpdesk.token');
+
 // Authentication Routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
+    // Phase J-02: throttle:5,1 — mencegah brute-force credential (lihat
+    // PHASE_PRODUCTION_SECURITY_AUDIT.md G4). Key default Laravel adalah IP+path,
+    // jadi 5 percobaan gagal/menit per IP sebelum 429 Too Many Requests.
+    Route::post('/login', [LoginController::class, 'login'])
+        ->middleware('throttle:5,1')
+        ->name('login.submit');
 });
 
 Route::middleware('auth')->group(function () {
@@ -59,6 +116,10 @@ Route::middleware('auth')->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Survei Penggunaan ESARAKU
+    Route::get('/survei', [\App\Http\Controllers\SurveiController::class, 'show'])->name('survei.show');
+    Route::post('/survei', [\App\Http\Controllers\SurveiController::class, 'store'])->name('survei.store');
 
     // Profile & Settings
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -71,6 +132,9 @@ Route::middleware('auth')->group(function () {
     // Middleware 'non_admin': Semua role KECUALI ADMIN bisa akses
     // ========================================================================
     Route::prefix('asn')->name('asn.')->middleware('non_admin')->group(function () {
+        // Tutorial ESARAKU — tidak perlu SKP approved, cukup auth + non_admin
+        Route::get('/tutorial', [TutorialController::class, 'index'])->name('tutorial.index');
+
         // ================================================================
         // SKP Tahunan - TIDAK perlu SKP approved (ASN buat & ajukan disini)
         // ================================================================
@@ -94,6 +158,12 @@ Route::middleware('auth')->group(function () {
         // ================================================================
         Route::get('/harian', [HarianController::class, 'index'])->name('harian.index');
         Route::get('/harian/pilih', [HarianController::class, 'pilih'])->name('harian.pilih');
+
+        // Cuti / Dinas Luar — tidak perlu SKP approved
+        Route::get('/cuti/create', [CutiController::class, 'create'])->name('cuti.create');
+        Route::post('/cuti/store', [CutiController::class, 'store'])->name('cuti.store');
+        Route::get('/cuti', [CutiController::class, 'index'])->name('cuti.index');
+        Route::delete('/cuti/{id}', [CutiController::class, 'destroy'])->name('cuti.destroy');
 
         // TLA - TIDAK perlu SKP approved (Create, Edit, Update, Delete, Cetak)
         Route::get('/harian/form-tla', [HarianController::class, 'formTla'])->name('harian.form-tla');
@@ -170,6 +240,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/harian-bawahan/detail/{user_id}', [HarianBawahanController::class, 'detail'])->name('harian-bawahan.detail');
         Route::get('/harian-bawahan/cetak-lkh/{user_id}/{tanggal}', [HarianBawahanController::class, 'cetakLKH'])->name('harian-bawahan.cetak-lkh');
         Route::get('/harian-bawahan/cetak-tla/{user_id}/{tanggal}', [HarianBawahanController::class, 'cetakTLA'])->name('harian-bawahan.cetak-tla');
+        Route::post('/harian-bawahan/verifikasi/{progresId}', [HarianBawahanController::class, 'verifikasi'])->name('harian-bawahan.verifikasi');
+        Route::get('/monitoring-verifikasi', [HarianBawahanController::class, 'monitoringVerifikasi'])->name('monitoring-verifikasi');
+        Route::get('/monitoring-verifikasi/export', [HarianBawahanController::class, 'exportVerifikasi'])->name('monitoring-verifikasi.export');
 
         // Rekap Kinerja - Cetak PDF (TAHAP 5.2 - PDF Export)
         Route::get('/rekap/mingguan/cetak', [RekapKinerjaCetakController::class, 'cetakMingguan'])->name('rekap.cetak-mingguan');
@@ -197,6 +270,10 @@ Route::middleware('auth')->group(function () {
         // Indikator Kinerja (Resource)
         Route::resource('indikator-kinerja', IndikatorKinerjaController::class);
 
+        // Pemetaan Indikator per Unit Kerja
+        Route::get('indikator-unit-kerja', [IndikatorUnitKerjaController::class, 'index'])->name('indikator-unit-kerja.index');
+        Route::post('indikator-unit-kerja/{unitKerja}/update', [IndikatorUnitKerjaController::class, 'update'])->name('indikator-unit-kerja.update');
+
         // Unit Kerja (Resource)
         Route::resource('unit-kerja', UnitKerjaController::class);
 
@@ -211,6 +288,35 @@ Route::middleware('auth')->group(function () {
         Route::get('/import-asn/template',          [ImportAsnController::class, 'downloadTemplate'])->name('import-asn.template');
         Route::post('/import-asn/preview',          [ImportAsnController::class, 'preview'])         ->name('import-asn.preview');
         Route::post('/import-asn/confirm',          [ImportAsnController::class, 'confirm'])         ->name('import-asn.confirm');
+
+        // Rotasi Jabatan
+        Route::get('/rotasi-jabatan', [RotasiJabatanController::class, 'index'])->name('rotasi-jabatan.index');
+        Route::get('/rotasi-jabatan/info-unit', [RotasiJabatanController::class, 'infoUnit'])->name('rotasi-jabatan.info-unit');
+        Route::get('/rotasi-jabatan/bawahan-atasan', [RotasiJabatanController::class, 'bawahanAtasan'])->name('rotasi-jabatan.bawahan-atasan');
+        Route::post('/rotasi-jabatan/ganti-kepala', [RotasiJabatanController::class, 'gantiKepala'])->name('rotasi-jabatan.ganti-kepala');
+        Route::post('/rotasi-jabatan/pindah-staf', [RotasiJabatanController::class, 'pindahStaf'])->name('rotasi-jabatan.pindah-staf');
+
+        // Koreksi Laporan Bulanan
+        Route::get('/koreksi-laporan',               [\App\Http\Controllers\Admin\KoreksiLaporanController::class, 'index'])  ->name('koreksi-laporan.index');
+        Route::post('/laporan-bulanan/{id}/koreksi', [\App\Http\Controllers\Admin\KoreksiLaporanController::class, 'koreksi'])->name('laporan-bulanan.koreksi');
+
+        // Kalender Libur Khusus (GURU, PENYULUH, PENGHULU)
+        Route::get('/kalender-libur-khusus',                      [KalenderLiburKhususController::class, 'index'])  ->name('kalender-libur-khusus.index');
+        Route::get('/kalender-libur-khusus/create',               [KalenderLiburKhususController::class, 'create']) ->name('kalender-libur-khusus.create');
+        Route::post('/kalender-libur-khusus',                     [KalenderLiburKhususController::class, 'store'])  ->name('kalender-libur-khusus.store');
+        Route::get('/kalender-libur-khusus/{kalender}/edit',      [KalenderLiburKhususController::class, 'edit'])   ->name('kalender-libur-khusus.edit');
+        Route::put('/kalender-libur-khusus/{kalender}',           [KalenderLiburKhususController::class, 'update']) ->name('kalender-libur-khusus.update');
+        Route::delete('/kalender-libur-khusus/{kalender}',        [KalenderLiburKhususController::class, 'destroy'])->name('kalender-libur-khusus.destroy');
+        Route::patch('/kalender-libur-khusus/{kalender}/toggle-status',
+            [KalenderLiburKhususController::class, 'toggleStatus'])->name('kalender-libur-khusus.toggle-status');
+
+        // Monitoring Survei ESARAKU
+        Route::get('/survei',                    [\App\Http\Controllers\Admin\SurveiMonitoringController::class, 'index'])      ->name('survei.index');
+        Route::get('/survei/export',             [\App\Http\Controllers\Admin\SurveiMonitoringController::class, 'export'])     ->name('survei.export');
+        Route::get('/survei/export-saran',       [\App\Http\Controllers\Admin\SurveiMonitoringController::class, 'exportSaran']) ->name('survei.export-saran');
+        Route::get('/survei/export-detail',      [\App\Http\Controllers\Admin\SurveiMonitoringController::class, 'exportDetail'])->name('survei.export-detail');
+        Route::post('/survei/{id}/aktifkan',     [\App\Http\Controllers\Admin\SurveiMonitoringController::class, 'aktifkan'])   ->name('survei.aktifkan');
+        Route::post('/survei/{id}/tutup',        [\App\Http\Controllers\Admin\SurveiMonitoringController::class, 'tutup'])      ->name('survei.tutup');
 
         // Dashboard Admin
         Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard.index');

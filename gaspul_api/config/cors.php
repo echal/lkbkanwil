@@ -22,7 +22,12 @@ return [
     'allowed_origins' => [
         'http://localhost:3000',  // Next.js development
         'http://127.0.0.1:3000',
-        // Tambahkan production domain di sini nanti
+        'https://esaraku.gaspul.com',
+        'https://helpdesk.gaspul.com',
+        'http://localhost',       // esaraku_helpdesk (XAMPP default port 80)
+        'http://localhost:8000',  // esaraku_helpdesk artisan serve
+        'http://127.0.0.1',
+        'http://127.0.0.1:8000',
     ],
 
     'allowed_origins_patterns' => [],

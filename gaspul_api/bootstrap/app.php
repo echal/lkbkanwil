@@ -16,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Runs on every request — forces MySQL PDO connection to the correct DB.
+        // Prevents Apache persistent connection pool from bleeding esaraku_helpdesk
+        // DB context into this app's queries.
+        $middleware->append(\App\Http\Middleware\PinMysqlDatabase::class);
+
         $middleware->alias([
             'role' => CheckRole::class,
             'skp.approved' => EnsureSkpApproved::class,
