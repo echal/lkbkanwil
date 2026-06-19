@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\WorkingTimeService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Carbon\Carbon;
@@ -47,14 +48,20 @@ class ProgresHarian extends Model
         'bukti_dukung',
         'status_bukti',
         'keterangan',
+        // Verifikasi eviden oleh atasan — tidak mempengaruhi realisasi/capaian
+        'verifikasi_eviden',
+        'catatan_verifikasi',
+        'verified_by',
+        'verified_at',
     ];
 
     protected $casts = [
-        'tanggal' => 'date',
-        'progres' => 'integer',
+        'tanggal'      => 'date',
+        'progres'      => 'float',
         'durasi_menit' => 'integer',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'verified_at'  => 'datetime',
+        'created_at'   => 'datetime',
+        'updated_at'   => 'datetime',
     ];
 
     protected $appends = ['durasi_jam'];
@@ -188,12 +195,27 @@ class ProgresHarian extends Model
     }
 
     /**
-     * Validate total durasi tidak melebihi 7 jam 30 menit (450 menit)
+     * Validate total durasi tidak melebihi target menit harian dinamis.
+     * Target dihitung dari pola kerja user (SENIN_JUMAT: 450 | SENIN_SABTU: 390/270/420).
+     *
+     * @param int         $rencanaAksiId
+     * @param string      $tanggal        Format Y-m-d
+     * @param int         $durasiBaru     Menit yang akan ditambahkan
+     * @param int|null    $excludeId      ID record yang dikecualikan (saat update)
+     * @param mixed|null  $user           User model untuk resolusi pola kerja; null = fallback SENIN_JUMAT (450)
+     * @return bool
      */
-    public static function validateDurasiHarian(int $rencanaAksiId, string $tanggal, int $durasiBaru, ?int $excludeId = null): bool
+    public static function validateDurasiHarian(int $rencanaAksiId, string $tanggal, int $durasiBaru, ?int $excludeId = null, $user = null): bool
     {
         $totalDurasi = self::getTotalDurasiHarian($rencanaAksiId, $tanggal, $excludeId);
-        return ($totalDurasi + $durasiBaru) <= 450;
+        $targetMenit = WorkingTimeService::getTargetMenitByDate(Carbon::parse($tanggal), $user);
+
+        // Jika target 0 (libur/weekend) maka tidak boleh ada input sama sekali
+        if ($targetMenit === 0) {
+            return false;
+        }
+
+        return ($totalDurasi + $durasiBaru) <= $targetMenit;
     }
 
     /**

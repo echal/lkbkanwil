@@ -62,9 +62,9 @@
             </div>
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
-                    <span class="text-gray-500 text-xs">W</span>
+                    <span class="text-gray-500 text-xs">L</span>
                 </div>
-                <span class="text-sm text-gray-700">Weekend</span>
+                <span class="text-sm text-gray-700">Libur / Weekend</span>
             </div>
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded bg-red-100 border-2 border-red-300 flex items-center justify-center">
@@ -81,7 +81,13 @@
         </div>
         <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p class="text-xs text-yellow-800">
-                <strong>Catatan:</strong> Input LKH dan RHK hanya bisa dilakukan pada hari kerja (Senin-Jumat) dan tidak bisa pada weekend atau hari libur nasional.
+                <strong>Catatan:</strong> Input LKH dan RHK hanya bisa dilakukan pada hari kerja
+                @if(($asn->hari_kerja ?? 'SENIN_JUMAT') === 'SENIN_SABTU')
+                    (Senin–Sabtu)
+                @else
+                    (Senin–Jumat)
+                @endif
+                dan tidak bisa pada hari libur nasional.
             </p>
         </div>
     </div>
@@ -143,7 +149,7 @@
                     <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
                         <div class="h-2 rounded-full transition-all duration-300
                             {{ $progressData['status'] === 'green' ? 'bg-green-500' : ($progressData['status'] === 'yellow' ? 'bg-yellow-500' : 'bg-red-500') }}"
-                            style="width: {{ min(($progressData['total_menit'] / 450) * 100, 100) }}%">
+                            style="width: {{ min(($progressData['total_menit'] / $targetMenitHariIni) * 100, 100) }}%">
                         </div>
                     </div>
                 </div>
@@ -293,16 +299,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // Data hari libur dari PHP
     const holidays = @json(\App\Helpers\HolidayHelper::getNationalHolidays2026());
 
+    // Pola kerja ASN — dari PHP, untuk menentukan apakah Sabtu hari kerja
+    const hariKerjaASN = @json($asn->hari_kerja ?? 'SENIN_JUMAT');
+
     // Function untuk check apakah tanggal bisa input
     function canInputDate(dateString) {
         const date = new Date(dateString);
         const dayOfWeek = date.getDay(); // 0 = Minggu, 6 = Sabtu
 
-        // Check weekend
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
+        // Minggu selalu non-kerja untuk semua pola
+        if (dayOfWeek === 0) {
             return {
                 canInput: false,
-                reason: 'Weekend (Sabtu/Minggu) - Tidak dapat input'
+                reason: 'Hari Minggu - Tidak dapat input'
+            };
+        }
+
+        // Sabtu: non-kerja hanya untuk SENIN_JUMAT
+        if (dayOfWeek === 6 && hariKerjaASN !== 'SENIN_SABTU') {
+            return {
+                canInput: false,
+                reason: 'Hari Sabtu - Tidak dapat input (pola kerja Senin–Jumat)'
             };
         }
 

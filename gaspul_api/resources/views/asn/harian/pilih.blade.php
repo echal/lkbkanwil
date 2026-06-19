@@ -34,7 +34,7 @@
     @endif
 
     <!-- Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
 
         <!-- Card: Kinerja Harian -->
         @if($hasApprovedSkp)
@@ -165,6 +165,65 @@
                 <!-- Arrow -->
                 <div class="mt-6 flex items-center text-blue-600 font-semibold group-hover:translate-x-2 transition-transform">
                     <span>Pilih Tugas Langsung</span>
+                    <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                    </svg>
+                </div>
+            </div>
+        </a>
+
+        <!-- Card: Cuti / Dinas Luar -->
+        <a href="{{ route('asn.cuti.create') }}"
+           class="group block bg-white rounded-2xl border-2 border-gray-200 hover:border-orange-400 hover:shadow-2xl transition-all duration-300 overflow-hidden">
+            <div class="p-8">
+                <!-- Icon -->
+                <div class="w-20 h-20 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+
+                <!-- Title -->
+                <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-orange-600 transition">
+                    Cuti ASN
+                </h3>
+
+                <!-- Description -->
+                <p class="text-gray-600 mb-4 leading-relaxed">
+                    Input status cuti resmi sehingga tidak tercatat sebagai hari kosong laporan kerja.
+                </p>
+
+                <!-- Features -->
+                <ul class="space-y-2 text-sm text-gray-600">
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-orange-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Daftar cuti yang sudah dibuat sebelumnya</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-orange-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Mendukung range tanggal</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-orange-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Upload link surat resmi</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-orange-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Otomatis tercatat di laporan bulanan</span>
+                    </li>
+                </ul>
+
+                <!-- Arrow -->
+                <div class="mt-6 flex items-center text-orange-600 font-semibold group-hover:translate-x-2 transition-transform">
+                    <span>Pilih Cuti ASN</span>
                     <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
                     </svg>

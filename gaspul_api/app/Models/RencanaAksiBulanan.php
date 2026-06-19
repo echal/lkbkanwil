@@ -43,8 +43,8 @@ class RencanaAksiBulanan extends Model
     protected $casts = [
         'bulan' => 'integer',
         'tahun' => 'integer',
-        'target_bulanan' => 'integer',
-        'realisasi_bulanan' => 'integer',
+        'target_bulanan' => 'float',
+        'realisasi_bulanan' => 'float',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -166,12 +166,17 @@ class RencanaAksiBulanan extends Model
     }
 
     /**
-     * Update realisasi from progres harian
+     * Update realisasi from progres harian, then cascade to SKP Tahunan Detail
      */
     public function updateRealisasi(): void
     {
         $this->realisasi_bulanan = $this->progresHarian()->sum('progres');
         $this->save();
+
+        // Cascade: propagate realisasi_bulanan sum up to skp_tahunan_detail
+        if ($this->skpTahunanDetail) {
+            $this->skpTahunanDetail->updateRealisasi();
+        }
     }
 
     /**

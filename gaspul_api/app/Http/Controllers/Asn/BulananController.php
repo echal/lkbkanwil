@@ -10,6 +10,7 @@ use App\Models\SkpTahunan;
 use App\Models\SkpTahunanDetail;
 use App\Services\LaporanBulananService;
 use App\Services\RekapAbsensiService;
+use App\Services\WorkingTimeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -40,9 +41,12 @@ class BulananController extends Controller
      */
     public function index(Request $request)
     {
-        $asn = Auth::user();
-        $tahun = $request->input('tahun', now()->year);
-        $bulan = $request->input('bulan', now()->month);
+        $asn  = Auth::user()->load('unitKerja');
+        $wita = now()->setTimezone('Asia/Makassar');
+        $defaultBulan = $wita->day <= 5 ? $wita->copy()->subMonth()->month : $wita->month;
+        $defaultTahun = $wita->day <= 5 ? $wita->copy()->subMonth()->year  : $wita->year;
+        $tahun = $request->input('tahun', $defaultTahun);
+        $bulan = $request->input('bulan', $defaultBulan);
 
         // 1. GET SKP TAHUNAN
         $skpTahunan = SkpTahunan::where('user_id', $asn->id)
@@ -111,11 +115,22 @@ class BulananController extends Controller
         $totalJamKerja = floor($totalDurasiMenit / 60);
         $sisaMenit = $totalDurasiMenit % 60;
 
-        // Target jam kerja per bulan (asumsi: 22 hari x 7.5 jam = 165 jam)
-        $targetJamKerjaBulanan = 165;
+        // Target jam kerja per bulan — user-aware (SENIN_JUMAT vs SENIN_SABTU)
+        $targetJamKerjaBulanan = (new WorkingTimeService)->getTargetJamBulananUser((int)$bulan, (int)$tahun, $asn);
         $persentaseJamKerja = $targetJamKerjaBulanan > 0
             ? round(($totalDurasiMenit / 60) / $targetJamKerjaBulanan * 100, 1)
             : 0;
+
+        // Ringkasan validasi eviden — monitoring informasional, tidak mempengaruhi capaian resmi
+        $menitTidakSesuai    = $progresHarianList->where('verifikasi_eviden', 'TIDAK_SESUAI')->sum('durasi_menit');
+        $menitValid          = $totalDurasiMenit - $menitTidakSesuai;
+        $jamValid            = floor($menitValid / 60);
+        $sisaMenutValid      = $menitValid % 60;
+        $jamTidakSesuai      = floor($menitTidakSesuai / 60);
+        $sisaMenitTidakSesuai = $menitTidakSesuai % 60;
+        $persentaseValidasi  = $totalDurasiMenit > 0
+            ? round($menitValid / $totalDurasiMenit * 100, 1)
+            : 100;
 
         // Status capaian
         $statusCapaian = 'Kurang';
@@ -224,6 +239,14 @@ class BulananController extends Controller
             'persentaseJamKerja'    => $persentaseJamKerja,
             'statusCapaian'         => $statusCapaian,
 
+            // Ringkasan validasi eviden (monitoring informasional)
+            'jamValid'             => $jamValid,
+            'sisaMenutValid'       => $sisaMenutValid,
+            'jamTidakSesuai'       => $jamTidakSesuai,
+            'sisaMenitTidakSesuai' => $sisaMenitTidakSesuai,
+            'persentaseValidasi'   => $persentaseValidasi,
+            'menitTidakSesuai'     => $menitTidakSesuai,
+
             // Detail Rekap
             'rekapRhkBulanan'       => $rekapRhkBulanan,
             'rekapKinerjaHarian'    => $rekapKinerjaHarian,
@@ -305,7 +328,7 @@ class BulananController extends Controller
      */
     public function exportPdf(Request $request)
     {
-        $asn   = Auth::user();
+        $asn   = Auth::user()->load('unitKerja');
         $tahun = (int) $request->input('tahun', now()->year);
         $bulan = (int) $request->input('bulan', now()->month);
 
@@ -326,21 +349,51 @@ class BulananController extends Controller
             : collect();
 
         // Rekap harian via service (1 query, no N+1)
-        $rekapHarian = $this->laporanService->getRekapHarian($asn->id, $bulan, $tahun);
+        $rekapHarian = $this->laporanService->getRekapHarian($asn->id, $bulan, $tahun, $asn);
         $summary     = $this->laporanService->getSummary($rekapHarian, $tahun, $bulan);
 
         $periode      = $this->getNamaBulan($bulan) . ' ' . $tahun;
         $tanggalCetak = Carbon::now()->locale('id')->isoFormat('D MMMM Y, HH:mm') . ' WIB';
 
+        // Target jam kerja bulanan — gunakan snapshot jika tersedia
+        $laporan = \App\Models\LaporanBulananKinerja::where('user_id', $asn->id)
+            ->where('bulan', $bulan)->where('tahun', $tahun)->first();
+        $targetMenitBulanan = $laporan?->target_menit_bulanan_snapshot
+            ?? WorkingTimeService::getTargetMenitBulanan($bulan, $tahun, $asn);
+        $targetJamBulanan   = $laporan?->target_jam_bulanan_snapshot
+            ?? round($targetMenitBulanan / 60, 2);
+        $polaKerja          = $laporan?->pola_kerja_snapshot
+            ?? \App\Helpers\HolidayHelper::getHariKerjaUser($asn);
+
+        // Detail KH & TLA per hari (1 query, grouped di PHP)
+        $dateObj      = Carbon::create($tahun, $bulan, 1);
+        $detailHarian = ProgresHarian::where('user_id', $asn->id)
+            ->whereBetween('tanggal', [
+                $dateObj->copy()->startOfMonth(),
+                $dateObj->copy()->endOfMonth(),
+            ])
+            ->with(['rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja'])
+            ->orderBy('tanggal')
+            ->orderBy('jam_mulai')
+            ->get()
+            ->groupBy(fn($p) => $p->tanggal->format('Y-m-d'));
+
+        $asn->load('atasan');
+
         $pdf = \PDF::loadView('asn.laporan.pdf.bulanan', [
-            'asn'          => $asn,
-            'periode'      => $periode,
-            'bulan'        => $bulan,
-            'tahun'        => $tahun,
-            'rencanaAksi'  => $rencanaAksi,
-            'rekapHarian'  => $rekapHarian,
-            'summary'      => $summary,
-            'tanggal_cetak'=> $tanggalCetak,
+            'asn'                  => $asn,
+            'atasan'               => $asn->atasan,
+            'periode'              => $periode,
+            'bulan'                => $bulan,
+            'tahun'                => $tahun,
+            'rencanaAksi'          => $rencanaAksi,
+            'rekapHarian'          => $rekapHarian,
+            'summary'              => $summary,
+            'detailHarian'         => $detailHarian,
+            'target_menit_bulanan' => $targetMenitBulanan,
+            'target_jam_bulanan'   => $targetJamBulanan,
+            'pola_kerja'           => $polaKerja,
+            'tanggal_cetak'        => $tanggalCetak,
         ]);
 
         $pdf->setPaper('A4', 'landscape');
@@ -356,9 +409,12 @@ class BulananController extends Controller
      */
     public function kirimKeAtasan(Request $request)
     {
-        $asn   = Auth::user();
-        $tahun = (int) $request->input('tahun', now()->year);
-        $bulan = (int) $request->input('bulan', now()->month);
+        $asn  = Auth::user();
+        $wita = now()->setTimezone('Asia/Makassar');
+        $defaultBulan = $wita->day <= 5 ? $wita->copy()->subMonth()->month : $wita->month;
+        $defaultTahun = $wita->day <= 5 ? $wita->copy()->subMonth()->year  : $wita->year;
+        $tahun = (int) $request->input('tahun', $defaultTahun);
+        $bulan = (int) $request->input('bulan', $defaultBulan);
 
         try {
             $this->laporanService->kirimKeAtasan($asn->id, $bulan, $tahun);
@@ -465,6 +521,10 @@ class BulananController extends Controller
                 'tipe_progres' => $progres->tipe_progres,
                 'status_bukti' => $progres->status_bukti,
                 'bukti_dukung' => $progres->bukti_dukung,
+                'verifikasi_eviden'  => $progres->verifikasi_eviden,
+                'catatan_verifikasi' => $progres->catatan_verifikasi,
+                'verified_by_id'     => $progres->verified_by,
+                'verified_at'        => $progres->verified_at,
             ];
         }
 

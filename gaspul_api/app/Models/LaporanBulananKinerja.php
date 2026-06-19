@@ -39,20 +39,30 @@ class LaporanBulananKinerja extends Model
         'tahun',
         'total_hari',
         'total_jam',
+        'target_jam',
         'capaian_persen',
         'status',
         'approved_by',
         'approved_at',
         'catatan',
+        // Snapshot — dibekukan saat generate, NULL untuk data lama
+        'target_menit_bulanan_snapshot',
+        'target_jam_bulanan_snapshot',
+        'hari_kerja_snapshot',
+        'pola_kerja_snapshot',
     ];
 
     protected $casts = [
-        'bulan'          => 'integer',
-        'tahun'          => 'integer',
-        'total_hari'     => 'integer',
-        'total_jam'      => 'integer',
-        'capaian_persen' => 'float',
-        'approved_at'    => 'datetime',
+        'bulan'                        => 'integer',
+        'tahun'                        => 'integer',
+        'total_hari'                   => 'integer',
+        'total_jam'                    => 'integer',
+        'target_jam'                   => 'float',
+        'capaian_persen'               => 'float',
+        'approved_at'                  => 'datetime',
+        'target_menit_bulanan_snapshot' => 'integer',
+        'target_jam_bulanan_snapshot'  => 'float',
+        'hari_kerja_snapshot'          => 'integer',
     ];
 
     // ── Relationships ──────────────────────────────────────────────────────
@@ -88,7 +98,7 @@ class LaporanBulananKinerja extends Model
             self::STATUS_DIKIRIM   => 'Menunggu Persetujuan',
             self::STATUS_DISETUJUI => 'Disetujui',
             self::STATUS_DITOLAK   => 'Ditolak',
-            default                => $this->status,
+            default                => $this->status ?? 'Draft',
         };
     }
 

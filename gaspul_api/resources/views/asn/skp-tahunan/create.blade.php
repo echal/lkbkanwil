@@ -49,14 +49,13 @@
                     Pilih Indikator Kinerja (RHK Pimpinan) <span class="text-red-500">*</span>
                 </label>
                 <select name="indikator_kinerja_id" id="indikator_kinerja_id" required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('indikator_kinerja_id') border-red-500 @enderror">
+                    class="select-indikator w-full @error('indikator_kinerja_id') border-red-500 @enderror">
                     <option value="">-- Pilih Indikator Kinerja --</option>
                     @foreach($indikatorList as $indikator)
                         <option value="{{ $indikator->id }}"
                                 data-satuan="{{ $indikator->satuan }}"
                                 {{ old('indikator_kinerja_id') == $indikator->id ? 'selected' : '' }}>
-                            {{ $indikator->kode_indikator }} - {{ $indikator->nama_indikator }}
-                            @if($indikator->unitKerja) ({{ $indikator->unitKerja->nama_unit }}) @endif
+                            {{ $indikator->kode_indikator }} - {{ $indikator->nama_indikator_bersih }}
                         </option>
                     @endforeach
                 </select>
@@ -115,16 +114,6 @@
                 </div>
             </div>
 
-            <script>
-                // Auto-fill satuan dari Indikator Kinerja yang dipilih
-                document.getElementById('indikator_kinerja_id').addEventListener('change', function() {
-                    const selectedOption = this.options[this.selectedIndex];
-                    const satuan = selectedOption.getAttribute('data-satuan');
-                    if(satuan) {
-                        document.getElementById('satuan').value = satuan;
-                    }
-                });
-            </script>
 
             <!-- Info Auto-Generate -->
             <div class="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -159,3 +148,26 @@
 
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    jQuery('.select-indikator').select2({
+        placeholder: "🔍 Cari indikator kinerja...",
+        allowClear: true,
+        width: '100%',
+        language: {
+            noResults: function() { return "Indikator tidak ditemukan"; },
+            searching: function() { return "Mencari..."; }
+        }
+    });
+    jQuery('#indikator_kinerja_id').on('select2:select', function() {
+        var satuan = this.options[this.selectedIndex].getAttribute('data-satuan');
+        if (satuan) document.getElementById('satuan').value = satuan;
+    });
+    jQuery('#indikator_kinerja_id').on('select2:clear', function() {
+        document.getElementById('satuan').value = '';
+    });
+});
+</script>
+@endpush

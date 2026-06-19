@@ -265,7 +265,7 @@
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $index + 1 }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">
-                            <div class="font-medium">{{ $detail->indikatorKinerja->nama_indikator ?? '-' }}</div>
+                            <div class="font-medium">{{ $detail->indikatorKinerja?->nama_indikator_bersih ?? '-' }}</div>
                             <div class="text-xs text-gray-500 mt-1">Kode: {{ $detail->indikatorKinerja->kode_indikator ?? '-' }}</div>
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">

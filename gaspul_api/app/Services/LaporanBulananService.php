@@ -4,9 +4,13 @@ namespace App\Services;
 
 use App\Models\LaporanBulananKinerja;
 use App\Models\ProgresHarian;
+use App\Models\CutiAsn;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
+use App\Helpers\HolidayHelper;
+use App\Services\WorkingTimeService;
+use App\Services\LiburKhususService;
 
 /**
  * Service untuk Laporan Bulanan Kinerja ASN.
@@ -23,6 +27,14 @@ use Illuminate\Validation\ValidationException;
  */
 class LaporanBulananService
 {
+    private WorkingTimeService $workingTime;
+    private LiburKhususService $liburKhusus;
+
+    public function __construct()
+    {
+        $this->workingTime = new WorkingTimeService();
+        $this->liburKhusus = new LiburKhususService();
+    }
     // ── 1. Rekap harian (presentation layer) ─────────────────────────────────
 
     /**
@@ -32,7 +44,7 @@ class LaporanBulananService
      * @return array<int, array{tanggal:string, hari:string, total_jam:string,
      *     total_menit:int, kh:int, tla:int, status:string, status_code:string}>
      */
-    public function getRekapHarian(int $userId, int $bulan, int $tahun): array
+    public function getRekapHarian(int $userId, int $bulan, int $tahun, $user = null): array
     {
         $startDate = Carbon::create($tahun, $bulan, 1)->startOfMonth();
         $endDate   = Carbon::create($tahun, $bulan, 1)->endOfMonth();
@@ -47,6 +59,32 @@ class LaporanBulananService
             fn(ProgresHarian $row) => $row->tanggal->format('Y-m-d')
         );
 
+        // 1 query cuti seluruh bulan — build set tanggal cuti untuk lookup O(1)
+        $cutiList   = CutiAsn::getForBulan($userId, $bulan, $tahun);
+        $cutiPerHari = [];  // ['Y-m-d' => jenis_cuti]
+        foreach ($cutiList as $cuti) {
+            $cur = $cuti->tanggal_mulai->copy();
+            while ($cur->lte($cuti->tanggal_selesai)) {
+                $cutiPerHari[$cur->format('Y-m-d')] = $cuti->jenis;
+                $cur->addDay();
+            }
+        }
+
+        // Tentukan pola kerja sekali di luar loop
+        $pola = $user !== null
+            ? \App\Helpers\HolidayHelper::getHariKerjaUser($user)
+            : 'SENIN_JUMAT';
+
+        // Pre-load tanggal libur khusus Guru satu kali untuk seluruh bulan (menghindari N+1)
+        $tanggalLiburKhususSet = [];
+        if ($user !== null && $this->liburKhusus->isGuru($user)) {
+            $tanggalLiburKhususSet = $this->liburKhusus->getTanggalLiburGuruBulanan(
+                [$user->unit_kerja_id],
+                $bulan,
+                $tahun
+            );
+        }
+
         $rekap     = [];
         $totalHari = $startDate->daysInMonth;
 
@@ -54,7 +92,23 @@ class LaporanBulananService
             $tanggal     = Carbon::create($tahun, $bulan, $day);
             $dateKey     = $tanggal->format('Y-m-d');
             $hariSingkat = $tanggal->locale('id')->isoFormat('ddd');
-            $isLibur     = $tanggal->isWeekend();
+
+            // Cuti / Dinas Luar — prioritas di atas libur & kosong
+            if (isset($cutiPerHari[$dateKey])) {
+                $rekap[] = $this->rowCuti($tanggal->format('d'), $hariSingkat, $cutiPerHari[$dateKey]);
+                continue;
+            }
+
+            // Libur khusus (misal: libur semester Guru) — sebelum cek hari kerja normal
+            // Hanya berlaku untuk laporan yang belum DISETUJUI (dicek di generateBulanan)
+            if (isset($tanggalLiburKhususSet[$dateKey]) && ! $grupPerHari->has($dateKey)) {
+                $rekap[] = $this->rowLiburKhusus($tanggal->format('d'), $hariSingkat);
+                continue;
+            }
+
+            // Target menit untuk hari ini — 0 berarti bukan hari kerja / libur
+            $targetMenit = WorkingTimeService::getTargetMenitByDate($tanggal, $user);
+            $isLibur     = $targetMenit === 0;
 
             if ($isLibur && ! $grupPerHari->has($dateKey)) {
                 $rekap[] = $this->rowLibur($tanggal->format('d'), $hariSingkat);
@@ -72,7 +126,7 @@ class LaporanBulananService
             $countTLA    = $hariProgres->where('tipe_progres', 'TUGAS_ATASAN')->count();
             $adaBukti    = $hariProgres->where('status_bukti', 'SUDAH_ADA')->isNotEmpty();
 
-            [$statusCode, $statusLabel] = $this->hitungStatus($totalMenit, $adaBukti);
+            [$statusCode, $statusLabel] = $this->hitungStatus($totalMenit, $tanggal, $user, $adaBukti);
 
             $rekap[] = [
                 'tanggal'     => $tanggal->format('d'),
@@ -95,17 +149,20 @@ class LaporanBulananService
     public function getSummary(array $rekapHarian, int $tahun, int $bulan): array
     {
         $collection = collect($rekapHarian);
-        $hariKerja  = $collection->whereNotIn('status_code', ['LIBUR', 'EMPTY'])->count();
+        // CUTI dan LIBUR_KHUSUS dikecualikan dari hari_kerja — tidak menaikkan/menurunkan capaian
+        $hariKerja  = $collection->whereNotIn('status_code', ['LIBUR', 'LIBUR_KHUSUS', 'EMPTY', 'CUTI'])->count();
         $totalMenit = $collection->sum('total_menit');
 
         return [
-            'total_hari'  => count($rekapHarian),
-            'hari_kerja'  => $hariKerja,
-            'hari_kosong' => $collection->where('status_code', 'EMPTY')->count(),
-            'hari_libur'  => $collection->where('status_code', 'LIBUR')->count(),
-            'hari_green'  => $collection->where('status_code', 'GREEN')->count(),
-            'hari_yellow' => $collection->where('status_code', 'YELLOW')->count(),
-            'hari_red'    => $collection->where('status_code', 'RED')->count(),
+            'total_hari'        => count($rekapHarian),
+            'hari_kerja'        => $hariKerja,
+            'hari_kosong'       => $collection->where('status_code', 'EMPTY')->count(),
+            'hari_libur'        => $collection->where('status_code', 'LIBUR')->count(),
+            'hari_libur_khusus' => $collection->where('status_code', 'LIBUR_KHUSUS')->count(),
+            'hari_cuti'         => $collection->where('status_code', 'CUTI')->count(),
+            'hari_green'        => $collection->where('status_code', 'GREEN')->count(),
+            'hari_yellow'       => $collection->where('status_code', 'YELLOW')->count(),
+            'hari_red'          => $collection->where('status_code', 'RED')->count(),
             'total_menit' => $totalMenit,
             'total_jam'   => $this->formatDurasi($totalMenit),
             'total_kh'    => $collection->sum('kh'),
@@ -124,21 +181,67 @@ class LaporanBulananService
      */
     public function generateBulanan(int $userId, int $bulan, int $tahun): LaporanBulananKinerja
     {
-        $rekapHarian = $this->getRekapHarian($userId, $bulan, $tahun);
+        // Guard: laporan yang sudah DISETUJUI tidak boleh di-recalculate
+        $existing = LaporanBulananKinerja::where('user_id', $userId)
+            ->where('bulan', $bulan)
+            ->where('tahun', $tahun)
+            ->first();
+
+        if ($existing && $existing->status === LaporanBulananKinerja::STATUS_DISETUJUI) {
+            return $existing;
+        }
+
+        // Guard: laporan yang sedang direview atasan tidak boleh di-recalculate
+        if ($existing && $existing->status === LaporanBulananKinerja::STATUS_DIKIRIM) {
+            return $existing;
+        }
+
+        $user        = \App\Models\User::with('unitKerja')->find($userId);
+        $rekapHarian = $this->getRekapHarian($userId, $bulan, $tahun, $user);
         $summary     = $this->getSummary($rekapHarian, $tahun, $bulan);
 
         $totalJam = (int) floor($summary['total_menit'] / 60);
-        $capaian  = round(($summary['total_menit'] / 60) / 165 * 100, 2);
 
-        return LaporanBulananKinerja::updateOrCreate(
-            ['user_id' => $userId, 'bulan' => $bulan, 'tahun' => $tahun],
-            [
-                'total_hari'    => $summary['hari_kerja'],
-                'total_jam'     => $totalJam,
-                'capaian_persen'=> min($capaian, 999.99),
-                // Hanya update status jika masih DRAFT (jangan overwrite DISETUJUI)
-            ]
+        // Target dasar dari konfigurasi pola kerja
+        $targetMenitSnapshot = WorkingTimeService::getTargetMenitBulanan($bulan, $tahun, $user);
+
+        // Kurangi target jika Guru sedang dalam periode Libur Khusus aktif
+        $menitLiburKhusus = $this->liburKhusus->countMenitLiburKhususBulanan($user, $bulan, $tahun);
+        if ($menitLiburKhusus > 0) {
+            $targetMenitSnapshot = max(0, $targetMenitSnapshot - $menitLiburKhusus);
+        }
+
+        $targetJam = round($targetMenitSnapshot / 60, 2);
+        $capaian   = $targetJam > 0
+            ? round(($summary['total_menit'] / 60) / $targetJam * 100, 2)
+            : 0;
+
+        // Snapshot — dibekukan saat generate untuk audit trail
+        $hariKerjaSnapshot   = $summary['hari_kerja'];
+        $polaKerjaSnapshot   = HolidayHelper::getHariKerjaUser($user);
+
+        $laporan = LaporanBulananKinerja::firstOrNew(
+            ['user_id' => $userId, 'bulan' => $bulan, 'tahun' => $tahun]
         );
+
+        $laporan->fill([
+            'total_hari'                    => $hariKerjaSnapshot,
+            'total_jam'                     => $totalJam,
+            'target_jam'                    => $targetJam,
+            'capaian_persen'                => min($capaian, 999.99),
+            'target_menit_bulanan_snapshot' => $targetMenitSnapshot,
+            'target_jam_bulanan_snapshot'   => round($targetMenitSnapshot / 60, 2),
+            'hari_kerja_snapshot'           => $hariKerjaSnapshot,
+            'pola_kerja_snapshot'           => $polaKerjaSnapshot,
+        ]);
+
+        // Pastikan status selalu terisi — set DRAFT hanya jika record baru (belum ada status)
+        if (empty($laporan->status)) {
+            $laporan->status = LaporanBulananKinerja::STATUS_DRAFT;
+        }
+
+        $laporan->save();
+        return $laporan;
     }
 
     /**
@@ -148,6 +251,18 @@ class LaporanBulananService
      */
     public function kirimKeAtasan(int $userId, int $bulan, int $tahun): LaporanBulananKinerja
     {
+        // Audit: catat jika ASN kirim laporan bulan berjalan di awal bulan (hari 1-5)
+        $wita = now()->setTimezone('Asia/Makassar');
+        if ($wita->day <= 5 && $bulan === (int) $wita->month && $tahun === (int) $wita->year) {
+            \Illuminate\Support\Facades\Log::warning('Potensi salah kirim laporan bulanan', [
+                'user_id'     => $userId,
+                'bulan'       => $bulan,
+                'tahun'       => $tahun,
+                'tanggal_kirim' => $wita->format('Y-m-d'),
+                'hari_ke'     => $wita->day,
+            ]);
+        }
+
         // Pastikan summary terbarukan
         $laporan = $this->generateBulanan($userId, $bulan, $tahun);
 
@@ -274,6 +389,13 @@ class LaporanBulananService
                 'status' => 'Libur', 'status_code' => 'LIBUR'];
     }
 
+    private function rowLiburKhusus(string $tgl, string $hari): array
+    {
+        return ['tanggal' => $tgl, 'hari' => $hari, 'total_jam' => '-',
+                'total_menit' => 0, 'kh' => 0, 'tla' => 0,
+                'status' => 'Libur Khusus', 'status_code' => 'LIBUR_KHUSUS'];
+    }
+
     private function rowKosong(string $tgl, string $hari): array
     {
         return ['tanggal' => $tgl, 'hari' => $hari, 'total_jam' => '-',
@@ -281,12 +403,27 @@ class LaporanBulananService
                 'status' => 'Tidak Ada', 'status_code' => 'EMPTY'];
     }
 
-    /** @return array{0: string, 1: string} */
-    private function hitungStatus(int $totalMenit, bool $adaBukti): array
+    private function rowCuti(string $tgl, string $hari, string $jenis): array
     {
-        if (! $adaBukti) return ['RED', 'Belum Bukti'];
-        if ($totalMenit < 450) return ['YELLOW', '< 7.5 Jam'];
-        return ['GREEN', 'Lengkap'];
+        return ['tanggal' => $tgl, 'hari' => $hari, 'total_jam' => '-',
+                'total_menit' => 0, 'kh' => 0, 'tla' => 0,
+                'status' => 'Cuti', 'status_code' => 'CUTI', 'jenis_cuti' => $jenis];
+    }
+
+    /**
+     * Hitung status harian berdasarkan target menit dinamis per pola kerja.
+     *
+     * @return array{0: string, 1: string}  [status_code, status_label]
+     */
+    private function hitungStatus(int $totalMenit, Carbon $date, $user, bool $adaBukti): array
+    {
+        $targetMenit = WorkingTimeService::getTargetMenitByDate($date, $user);
+
+        if ($targetMenit === 0) return ['LIBUR', 'Hari Libur'];
+        if (! $adaBukti)        return ['RED',   'Belum Bukti'];
+        if ($totalMenit >= $targetMenit) return ['GREEN',  'Lengkap'];
+        if ($totalMenit > 0)    return ['YELLOW', 'Kurang'];
+        return ['RED', 'Belum Input'];
     }
 
     private function formatDurasi(int $menit): string

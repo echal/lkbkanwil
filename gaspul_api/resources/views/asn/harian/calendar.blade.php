@@ -44,9 +44,9 @@
                     <span class="inline-block px-1 py-0.5 rounded text-[10px] font-semibold bg-purple-600 text-white">
                         RHK
                     </span>
-                {{-- Badge Weekend --}}
-                @elseif($dayData['is_weekend'])
-                    <span class="text-[9px] font-medium text-gray-500">Weekend</span>
+                {{-- Badge Libur/Weekend (hanya untuk non-hari-kerja, user-aware) --}}
+                @elseif(!$dayData['is_working_day'] && !$dayData['is_holiday'])
+                    <span class="text-[9px] font-medium text-gray-500">Libur</span>
                 {{-- Badge Libur --}}
                 @elseif($dayData['is_holiday'])
                     <div class="text-[8px] font-medium text-red-700 leading-tight">
@@ -74,7 +74,7 @@
                 @endif
 
                 {{-- Indikator tidak bisa input --}}
-                @if(!$dayData['can_input'] && $dayData['is_current_month'] && !$dayData['is_holiday'] && !$dayData['is_weekend'])
+                @if(!$dayData['can_input'] && $dayData['is_current_month'] && !$dayData['is_holiday'] && $dayData['is_working_day'])
                     <svg class="w-3 h-3 mx-auto text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
                     </svg>
@@ -103,7 +103,7 @@
         </div>
         <div class="flex items-center gap-2">
             <div class="w-4 h-4 rounded bg-gray-100 border-2 border-gray-300"></div>
-            <span class="text-gray-700">Weekend</span>
+            <span class="text-gray-700">Libur / Weekend</span>
         </div>
         <div class="flex items-center gap-2">
             <div class="w-4 h-4 rounded bg-red-100 border-2 border-red-300"></div>

@@ -123,24 +123,60 @@
         </div>
 
         <!-- Link Bukti -->
-        <div>
+        <div x-data="cekLinkEvidenTla()">
             <label for="link_bukti" class="block text-sm font-medium text-gray-700 mb-2">
-                Link Bukti <span class="text-gray-400 text-xs">(Opsional)</span>
+                Link Eviden Google Drive <span class="text-gray-400 text-xs">(Opsional)</span>
             </label>
-            <input type="url"
-                   id="link_bukti"
-                   name="link_bukti"
-                   class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                   placeholder="https://drive.google.com/... atau https://..."
-                   value="{{ old('link_bukti') }}">
+            <div class="flex gap-2">
+                <input type="url"
+                       id="link_bukti"
+                       name="link_bukti"
+                       x-model="url"
+                       @input="reset()"
+                       class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                       placeholder="https://drive.google.com/..."
+                       value="{{ old('link_bukti') }}">
+                <button type="button"
+                        @click="cek()"
+                        class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition whitespace-nowrap border border-gray-300">
+                    Cek Link
+                </button>
+            </div>
+            {{-- Hasil cek domain (client-side, non-blocking) --}}
+            <p x-show="status === 'valid'"   class="mt-1 text-xs text-green-600 font-medium">✓ Domain Google valid</p>
+            <p x-show="status === 'invalid'" class="mt-1 text-xs text-red-600 font-medium">✗ Domain tidak didukung. Gunakan Google Drive / Docs / Sheets / Forms / Slides.</p>
+            <p x-show="status === 'empty'"   class="mt-1 text-xs text-gray-400">Link kosong — eviden dapat diisi nanti.</p>
             @error('link_bukti')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
             @enderror
-            <p class="mt-1 text-xs text-gray-500">
-                Link Google Drive, foto, atau dokumen pendukung.
-                <span class="font-semibold text-orange-600">Bisa di-upload nanti sampai jam 23:59</span>
-            </p>
+            {{-- Panduan sharing --}}
+            <div class="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                <p class="font-semibold mb-1">⚠ Pastikan pengaturan berbagi Google Drive:</p>
+                <p>"Siapa saja yang memiliki link dapat <strong>melihat</strong> (Viewer)"</p>
+                <p class="mt-1 text-amber-600">Domain yang diterima: drive.google.com, docs.google.com, sheets.google.com, forms.google.com, slides.google.com</p>
+            </div>
         </div>
+
+        <script>
+        function cekLinkEvidenTla() {
+            const allowed = {!! \App\Helpers\EvidenHelper::allowedDomainsJson() !!};
+            return {
+                url: '{{ old('link_bukti') }}',
+                status: '',
+                reset() { this.status = ''; },
+                cek() {
+                    const v = this.url ? this.url.trim() : '';
+                    if (!v) { this.status = 'empty'; return; }
+                    try {
+                        const host = new URL(v).hostname.replace(/^www\./i,'').toLowerCase();
+                        this.status = allowed.includes(host) ? 'valid' : 'invalid';
+                    } catch(e) {
+                        this.status = 'invalid';
+                    }
+                },
+            };
+        }
+        </script>
 
         <!-- Keterangan -->
         <div>

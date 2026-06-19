@@ -341,7 +341,7 @@
                             <strong>{{ $item->rencana_kegiatan_harian }}</strong>
                             @if($item->rencanaAksiBulanan)
                                 <div class="indikator-label">
-                                    Indikator: {{ $item->rencanaAksiBulanan->skpTahunanDetail->indikatorKinerja->nama_indikator ?? '-' }}
+                                    Indikator: {{ $item->rencanaAksiBulanan->skpTahunanDetail->indikatorKinerja?->nama_indikator_bersih ?? '-' }}
                                 </div>
                             @endif
                         @else

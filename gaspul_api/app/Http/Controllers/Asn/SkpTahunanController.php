@@ -66,13 +66,13 @@ class SkpTahunanController extends Controller
         }
 
         // Get active Indikator Kinerja
-        // Filter by ASN's unit kerja (if exists, otherwise show all)
+        // Filter via pivot table (unit dipetakan) + indikator global (unit_kerja_id NULL)
         $indikatorList = IndikatorKinerja::aktif()
             ->with('sasaranKegiatan')
             ->when($asn->unit_kerja_id, function($query) use ($asn) {
                 $query->where(function($q) use ($asn) {
-                    $q->where('unit_kerja_id', $asn->unit_kerja_id)
-                      ->orWhereNull('unit_kerja_id'); // Allow global indikator
+                    $q->whereHas('unitKerjas', fn($sq) => $sq->where('unit_kerja_id', $asn->unit_kerja_id))
+                      ->orWhereNull('unit_kerja_id'); // Indikator global
                 });
             })
             ->get();
@@ -147,12 +147,13 @@ class SkpTahunanController extends Controller
         $detail->load(['indikatorKinerja.sasaranKegiatan']);
 
         // Get active Indikator Kinerja
+        // Filter via pivot table (unit dipetakan) + indikator global (unit_kerja_id NULL)
         $indikatorList = IndikatorKinerja::aktif()
             ->with('sasaranKegiatan')
             ->when($asn->unit_kerja_id, function($query) use ($asn) {
                 $query->where(function($q) use ($asn) {
-                    $q->where('unit_kerja_id', $asn->unit_kerja_id)
-                      ->orWhereNull('unit_kerja_id');
+                    $q->whereHas('unitKerjas', fn($sq) => $sq->where('unit_kerja_id', $asn->unit_kerja_id))
+                      ->orWhereNull('unit_kerja_id'); // Indikator global
                 });
             })
             ->get();
@@ -240,8 +241,9 @@ class SkpTahunanController extends Controller
         // APPROVAL LOGIC BERBASIS HIERARKI
         // ====================================================================
 
-        // Cek apakah user punya atasan (load relasi atasan)
-        $user->load('atasan');
+        // Fresh dari DB agar perubahan atasan_id oleh admin langsung efektif
+        // tanpa perlu ASN logout-login ulang
+        $user = $user->fresh(['atasan']);
 
         if ($user->atasan_id && $user->atasan) {
             // CASE 1: User punya atasan → submit untuk approval

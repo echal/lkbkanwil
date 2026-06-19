@@ -24,6 +24,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uraian Kegiatan</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volume</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status Eviden</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                     </tr>
                 </thead>
@@ -72,6 +73,31 @@
                             @else
                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
                                     TLA
+                                </span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            @if($item['verifikasi_eviden'] === 'SESUAI')
+                                <span class="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                    ✓ Sesuai
+                                </span>
+                            @elseif($item['verifikasi_eviden'] === 'KURANG')
+                                <span class="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                    ⚠ Kurang
+                                </span>
+                                @if(!empty($item['catatan_verifikasi']))
+                                    <p class="mt-1 text-xs text-gray-500 max-w-[120px] break-words line-clamp-2">{{ $item['catatan_verifikasi'] }}</p>
+                                @endif
+                            @elseif($item['verifikasi_eviden'] === 'TIDAK_SESUAI')
+                                <span class="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                    ✗ Tidak Sesuai
+                                </span>
+                                @if(!empty($item['catatan_verifikasi']))
+                                    <p class="mt-1 text-xs text-gray-500 max-w-[120px] break-words line-clamp-2">{{ $item['catatan_verifikasi'] }}</p>
+                                @endif
+                            @else
+                                <span class="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-500">
+                                    Belum Diverifikasi
                                 </span>
                             @endif
                         </td>

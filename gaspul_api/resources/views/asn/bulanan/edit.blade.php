@@ -23,7 +23,7 @@
             </svg>
             <div>
                 <h3 class="text-lg font-semibold text-blue-800 mb-1">Periode: {{ $rencanaAksi->bulan_nama }} {{ $rencanaAksi->tahun }}</h3>
-                <p class="text-sm text-blue-700 mb-2"><strong>Indikator Kinerja:</strong> {{ $rencanaAksi->skpTahunanDetail->indikatorKinerja->nama_indikator ?? '-' }}</p>
+                <p class="text-sm text-blue-700 mb-2"><strong>Indikator Kinerja:</strong> {{ $rencanaAksi->skpTahunanDetail->indikatorKinerja?->nama_indikator_bersih ?? '-' }}</p>
                 <p class="text-sm text-blue-700"><strong>Rencana Aksi ASN:</strong> {{ $rencanaAksi->skpTahunanDetail->rencana_aksi }}</p>
             </div>
         </div>

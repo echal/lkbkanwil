@@ -285,7 +285,7 @@
                 <td>:</td>
                 <td>
                     @if($progres->rencanaAksiBulanan && $progres->rencanaAksiBulanan->skpTahunanDetail && $progres->rencanaAksiBulanan->skpTahunanDetail->indikatorKinerja)
-                        {{ $progres->rencanaAksiBulanan->skpTahunanDetail->indikatorKinerja->nama_indikator }}
+                        {{ $progres->rencanaAksiBulanan->skpTahunanDetail->indikatorKinerja->nama_indikator_bersih }}
                     @else
                         -
                     @endif
@@ -318,7 +318,7 @@
                 <td>Status Bukti Dukung</td>
                 <td>:</td>
                 <td>
-                    @if($progres->status_bukti === 'ADA')
+                    @if($progres->status_bukti === 'SUDAH_ADA')
                         <span class="status-badge status-ada">✓ Bukti Tersedia</span>
                     @else
                         <span class="status-badge status-belum">✗ Belum Ada Bukti</span>

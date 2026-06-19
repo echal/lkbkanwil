@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Asn;
 use App\Http\Controllers\Controller;
 use App\Models\RencanaAksiBulanan;
 use App\Models\ProgresHarian;
+use App\Models\CutiAsn;
+use App\Helpers\EvidenHelper;
 use App\Helpers\HolidayHelper;
 use App\Services\SkpAccessService;
+use App\Services\WorkingTimeService;
+use App\Services\LiburKhususService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -18,7 +22,7 @@ class HarianController extends Controller
      */
     public function index(Request $request)
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
 
         // Get selected month and year
         $month = $request->input('month', now()->month);
@@ -26,25 +30,28 @@ class HarianController extends Controller
         $selectedDate = $request->input('date', now()->format('Y-m-d'));
 
         // Build calendar data for the month
-        $calendarData = $this->buildCalendarData($asn->id, $month, $year);
+        $calendarData = $this->buildCalendarData($asn->id, $month, $year, $asn);
 
         // Get progress for selected date
         $progressData = $this->getProgressForDate($asn->id, $selectedDate);
 
+        $targetMenitHariIni = WorkingTimeService::getTargetMenitByDate(Carbon::parse($selectedDate), $asn);
+
         return view('asn.harian.index', [
-            'calendarData' => $calendarData,
-            'progressData' => $progressData,
-            'selectedDate' => $selectedDate,
-            'month' => $month,
-            'year' => $year,
-            'asn' => $asn,
+            'calendarData'       => $calendarData,
+            'progressData'       => $progressData,
+            'selectedDate'       => $selectedDate,
+            'month'              => $month,
+            'year'               => $year,
+            'asn'                => $asn,
+            'targetMenitHariIni' => max(1, $targetMenitHariIni),
         ]);
     }
 
     /**
      * Build calendar data for entire month dengan integrasi hari libur
      */
-    private function buildCalendarData($userId, $month, $year)
+    private function buildCalendarData($userId, $month, $year, $asn = null)
     {
         $calendar = [];
 
@@ -100,21 +107,24 @@ class HarianController extends Controller
                 $hasLkh = $entries->count() > 0;
             }
 
-            // Tentukan badge menggunakan HolidayHelper
-            $badge = HolidayHelper::getDateBadge($currentDate, $hasLkh, $hasRhk);
+            // Tentukan badge menggunakan HolidayHelper (user-aware untuk SENIN_SABTU)
+            $badge = HolidayHelper::getDateBadge($currentDate, $hasLkh, $hasRhk, $asn);
 
             // Tentukan apakah bisa input
-            $canInput = HolidayHelper::canInputData($currentDate) && $isCurrentMonth;
+            $canInput = HolidayHelper::canInputData($currentDate, $asn) && $isCurrentMonth;
 
-            // Status untuk warna kalender (backward compatibility)
+            // Status untuk warna kalender — dynamic target per pola kerja
+            $targetMenit = WorkingTimeService::getTargetMenitByDate($currentDate, $asn);
             $status = 'empty';
-            if ($hasLkh && $totalMenit > 0) {
+            if ($targetMenit === 0) {
+                $status = 'gray';
+            } elseif ($hasLkh && $totalMenit > 0) {
                 if (!$hasEvidence) {
                     $status = 'red';
-                } elseif ($totalMenit < 450) {
-                    $status = 'yellow';
-                } else {
+                } elseif ($totalMenit >= $targetMenit) {
                     $status = 'green';
+                } else {
+                    $status = 'yellow';
                 }
             }
 
@@ -124,10 +134,10 @@ class HarianController extends Controller
                 'day_name' => $currentDate->translatedFormat('D'),
                 'is_current_month' => $isCurrentMonth,
                 'is_today' => $currentDate->isToday(),
-                'is_weekend' => $currentDate->isWeekend(),
+                'is_weekend' => !HolidayHelper::isWorkingDay($currentDate, $asn) && !HolidayHelper::isNationalHoliday($currentDate),
                 'is_holiday' => HolidayHelper::isNationalHoliday($currentDate),
                 'holiday_name' => HolidayHelper::getHolidayName($currentDate),
-                'is_working_day' => HolidayHelper::isWorkingDay($currentDate),
+                'is_working_day' => HolidayHelper::isWorkingDay($currentDate, $asn),
                 'can_input' => $canInput,
                 'has_lkh' => $hasLkh,
                 'has_rhk' => $hasRhk,
@@ -158,18 +168,23 @@ class HarianController extends Controller
             ->get();
 
         // Calculate totals
-        $totalMenit = $entries->sum('durasi_menit');
+        $asn         = Auth::user()->load('unitKerja');
+        $carbonDate  = Carbon::parse($date);
+        $targetMenit = WorkingTimeService::getTargetMenitByDate($carbonDate, $asn);
+        $totalMenit  = $entries->sum('durasi_menit');
         $hasEvidence = $entries->where('status_bukti', 'SUDAH_ADA')->count() > 0;
-        $sisaMenit = max(0, 450 - $totalMenit);
+        $sisaMenit   = max(0, $targetMenit - $totalMenit);
 
-        // Determine status
-        if ($totalMenit > 0) {
+        // Determine status — dynamic target
+        if ($targetMenit === 0) {
+            $status = 'gray';
+        } elseif ($totalMenit > 0) {
             if (!$hasEvidence) {
                 $status = 'red';
-            } elseif ($totalMenit < 450) {
-                $status = 'yellow';
-            } else {
+            } elseif ($totalMenit >= $targetMenit) {
                 $status = 'green';
+            } else {
+                $status = 'yellow';
             }
         } else {
             $status = 'empty';
@@ -224,8 +239,14 @@ class HarianController extends Controller
      */
     public function formKinerja()
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $tanggal = request('date', now()->format('Y-m-d'));
+
+        // Gate: Libur Khusus — Guru tidak boleh buka form KH
+        if ((new LiburKhususService())->isLiburKhusus($asn, Carbon::parse($tanggal))) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggal])
+                ->with('error', 'Anda sedang berada pada periode Libur Khusus. Pengisian Kinerja Harian dan Tugas Langsung Atasan dinonaktifkan selama periode tersebut.');
+        }
 
         // Parse date to get month and year
         $dateObj = Carbon::parse($tanggal);
@@ -246,17 +267,25 @@ class HarianController extends Controller
             ->get()
             ->map(function($rencana) {
                 return [
-                    'id' => $rencana->id,
-                    'indikator_kinerja' => $rencana->skpTahunanDetail->indikatorKinerja->nama_indikator ?? '-',
+                    'id'                   => $rencana->id,
+                    'indikator_kinerja'    => $rencana->skpTahunanDetail->indikatorKinerja->nama_indikator ?? '-',
                     'rencana_aksi_bulanan' => $rencana->rencana_aksi_bulanan,
-                    'bulan' => $rencana->bulan_nama,
-                    'target' => $rencana->target_bulanan . ' ' . ($rencana->satuan_target ?? ''),
+                    'bulan'                => $rencana->bulan_nama,
+                    'target'               => $rencana->target_bulanan . ' ' . ($rencana->satuan_target ?? ''),
+                    'target_bulanan'       => (float) $rencana->target_bulanan,
+                    'realisasi_bulanan'    => (float) $rencana->realisasi_bulanan,
+                    'satuan_target'        => $rencana->satuan_target ?? '',
                 ];
             });
 
+        $sisaHariKerja = HolidayHelper::countRemainingWorkingDays($bulan, $tahun, $asn);
+        $hasRabAktif   = $rencanaKerja->isNotEmpty();
+
         return view('asn.harian.form-kinerja', [
-            'rencanaKerja' => $rencanaKerja,
-            'tanggal' => $tanggal,
+            'rencanaKerja'  => $rencanaKerja,
+            'tanggal'       => $tanggal,
+            'sisaHariKerja' => $sisaHariKerja,
+            'hasRabAktif'   => $hasRabAktif,
         ]);
     }
 
@@ -281,16 +310,16 @@ class HarianController extends Controller
             'rencana_kerja_id.exists' => 'Rencana Aksi Bulanan tidak valid',
         ]);
 
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $tanggal = $validated['tanggal'] ?? now()->format('Y-m-d');
 
         // VALIDASI: Tidak bisa input di weekend atau hari libur
-        if (!HolidayHelper::canInputData($tanggal)) {
+        if (!HolidayHelper::canInputData($tanggal, $asn)) {
             $carbonDate = Carbon::parse($tanggal);
             $reason = 'Tidak dapat menginput data pada ';
 
-            if ($carbonDate->isWeekend()) {
-                $reason .= 'akhir pekan (Sabtu/Minggu)';
+            if ($carbonDate->isSunday() || ($carbonDate->isSaturday() && HolidayHelper::getHariKerjaUser($asn) === 'SENIN_JUMAT')) {
+                $reason .= 'akhir pekan';
             } elseif (HolidayHelper::isNationalHoliday($tanggal)) {
                 $holidayName = HolidayHelper::getHolidayName($tanggal);
                 $reason .= 'hari libur nasional (' . $holidayName . ')';
@@ -300,7 +329,28 @@ class HarianController extends Controller
 
             return redirect()->back()
                 ->withInput()
-                ->with('error', $reason . '. Silakan pilih hari kerja (Senin-Jumat).');
+                ->with('error', $reason . '. Silakan pilih hari kerja.');
+        }
+
+        // Gate: Libur Khusus — Guru tidak boleh simpan KH saat libur khusus
+        if ((new LiburKhususService())->isLiburKhusus($asn, Carbon::parse($tanggal))) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Anda sedang berada pada periode Libur Khusus. Tidak perlu melakukan pengisian Kinerja Harian.');
+        }
+
+        // VALIDASI: Tidak bisa input di tanggal cuti/dinas luar
+        if (CutiAsn::isSedangCuti($asn->id, $tanggal)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Anda sedang tercatat CUTI/DINAS LUAR pada tanggal tersebut.');
+        }
+
+        // VALIDASI: Domain link eviden harus Google (tanpa HTTP request)
+        if (!EvidenHelper::isValid($validated['link_bukti'] ?? null)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', EvidenHelper::ERROR_DOMAIN);
         }
 
         // Calculate duration
@@ -308,15 +358,25 @@ class HarianController extends Controller
         $jamSelesai = Carbon::parse($tanggal . ' ' . $validated['jam_selesai']);
         $durasiMenit = $jamSelesai->diffInMinutes($jamMulai);
 
-        // Validate total durasi per hari tidak melebihi 450 menit (7.5 jam)
+        // Validate total durasi per hari tidak melebihi target dinamis
+        $carbonTanggal      = Carbon::parse($tanggal);
+        $targetMenit        = WorkingTimeService::getTargetMenitByDate($carbonTanggal, $asn);
         $totalDurasiHariIni = ProgresHarian::where('user_id', $asn->id)
             ->whereDate('tanggal', $tanggal)
             ->sum('durasi_menit');
 
-        if (($totalDurasiHariIni + $durasiMenit) > 450) {
+        if ($targetMenit === 0) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Total durasi kerja hari ini tidak boleh melebihi 7 jam 30 menit (450 menit).');
+                ->with('error', 'Hari ini bukan hari kerja.');
+        }
+
+        if (($totalDurasiHariIni + $durasiMenit) > $targetMenit) {
+            $jamTarget = floor($targetMenit / 60);
+            $menitTarget = $targetMenit % 60;
+            return redirect()->back()
+                ->withInput()
+                ->with('error', "Total durasi kerja hari ini tidak boleh melebihi {$jamTarget} jam {$menitTarget} menit ({$targetMenit} menit).");
         }
 
         // Determine status_bukti based on link_bukti
@@ -358,8 +418,14 @@ class HarianController extends Controller
      */
     public function formTla()
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $tanggal = request('date', now()->format('Y-m-d'));
+
+        // Gate: Libur Khusus — Guru tidak boleh buka form TLA
+        if ((new LiburKhususService())->isLiburKhusus($asn, Carbon::parse($tanggal))) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggal])
+                ->with('error', 'Anda sedang berada pada periode Libur Khusus. Pengisian Kinerja Harian dan Tugas Langsung Atasan dinonaktifkan selama periode tersebut.');
+        }
 
         return view('asn.harian.form-tla', [
             'tanggal' => $tanggal,
@@ -383,16 +449,16 @@ class HarianController extends Controller
             'jam_selesai.after' => 'Jam selesai harus lebih besar dari jam mulai',
         ]);
 
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $tanggal = $validated['tanggal'] ?? now()->format('Y-m-d');
 
         // VALIDASI: Tidak bisa input di weekend atau hari libur
-        if (!HolidayHelper::canInputData($tanggal)) {
+        if (!HolidayHelper::canInputData($tanggal, $asn)) {
             $carbonDate = Carbon::parse($tanggal);
             $reason = 'Tidak dapat menginput data pada ';
 
-            if ($carbonDate->isWeekend()) {
-                $reason .= 'akhir pekan (Sabtu/Minggu)';
+            if ($carbonDate->isSunday() || ($carbonDate->isSaturday() && HolidayHelper::getHariKerjaUser($asn) === 'SENIN_JUMAT')) {
+                $reason .= 'akhir pekan';
             } elseif (HolidayHelper::isNationalHoliday($tanggal)) {
                 $holidayName = HolidayHelper::getHolidayName($tanggal);
                 $reason .= 'hari libur nasional (' . $holidayName . ')';
@@ -402,7 +468,28 @@ class HarianController extends Controller
 
             return redirect()->back()
                 ->withInput()
-                ->with('error', $reason . '. Silakan pilih hari kerja (Senin-Jumat).');
+                ->with('error', $reason . '. Silakan pilih hari kerja.');
+        }
+
+        // Gate: Libur Khusus — Guru tidak boleh simpan TLA saat libur khusus
+        if ((new LiburKhususService())->isLiburKhusus($asn, Carbon::parse($tanggal))) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Anda sedang berada pada periode Libur Khusus. Tidak perlu melakukan pengisian Kinerja Harian.');
+        }
+
+        // VALIDASI: Tidak bisa input di tanggal cuti/dinas luar
+        if (CutiAsn::isSedangCuti($asn->id, $tanggal)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Anda sedang tercatat CUTI/DINAS LUAR pada tanggal tersebut.');
+        }
+
+        // VALIDASI: Domain link eviden harus Google (tanpa HTTP request)
+        if (!EvidenHelper::isValid($validated['link_bukti'] ?? null)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', EvidenHelper::ERROR_DOMAIN);
         }
 
         // Calculate duration
@@ -410,15 +497,25 @@ class HarianController extends Controller
         $jamSelesai = Carbon::parse($tanggal . ' ' . $validated['jam_selesai']);
         $durasiMenit = $jamSelesai->diffInMinutes($jamMulai);
 
-        // Validate total durasi per hari tidak melebihi 450 menit (7.5 jam)
+        // Validate total durasi per hari tidak melebihi target dinamis
+        $carbonTanggal      = Carbon::parse($tanggal);
+        $targetMenit        = WorkingTimeService::getTargetMenitByDate($carbonTanggal, $asn);
         $totalDurasiHariIni = ProgresHarian::where('user_id', $asn->id)
             ->whereDate('tanggal', $tanggal)
             ->sum('durasi_menit');
 
-        if (($totalDurasiHariIni + $durasiMenit) > 450) {
+        if ($targetMenit === 0) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Total durasi kerja hari ini tidak boleh melebihi 7 jam 30 menit (450 menit).');
+                ->with('error', 'Hari ini bukan hari kerja.');
+        }
+
+        if (($totalDurasiHariIni + $durasiMenit) > $targetMenit) {
+            $jamTarget = floor($targetMenit / 60);
+            $menitTarget = $targetMenit % 60;
+            return redirect()->back()
+                ->withInput()
+                ->with('error', "Total durasi kerja hari ini tidak boleh melebihi {$jamTarget} jam {$menitTarget} menit ({$targetMenit} menit).");
         }
 
         // Determine status_bukti based on link_bukti
@@ -450,7 +547,7 @@ class HarianController extends Controller
      */
     public function edit($id)
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $date = request('date', now()->format('Y-m-d'));
 
         // Get progres harian from database
@@ -465,7 +562,7 @@ class HarianController extends Controller
 
         // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
         $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
-        if (!HolidayHelper::canInputData($tanggalProgres)) {
+        if (!HolidayHelper::canInputData($tanggalProgres, $asn)) {
             return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
                 ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
         }
@@ -517,7 +614,7 @@ class HarianController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
 
         // Find progres harian
         $progresHarian = ProgresHarian::where('id', $id)
@@ -531,9 +628,15 @@ class HarianController extends Controller
 
         // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
         $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
-        if (!HolidayHelper::canInputData($tanggalProgres)) {
+        if (!HolidayHelper::canInputData($tanggalProgres, $asn)) {
             return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
                 ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
+        }
+
+        // Gate: Libur Khusus — Guru tidak boleh update KH/TLA saat libur khusus
+        if ((new LiburKhususService())->isLiburKhusus($asn, Carbon::parse($tanggalProgres))) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Anda sedang berada pada periode Libur Khusus. Tidak perlu melakukan pengisian Kinerja Harian.');
         }
 
         // Validate based on tipe_progres
@@ -569,16 +672,33 @@ class HarianController extends Controller
         $jamSelesai = Carbon::parse($tanggal . ' ' . $validated['jam_selesai']);
         $durasiMenit = $jamSelesai->diffInMinutes($jamMulai);
 
-        // Validate total durasi per hari (exclude current record)
+        // Validate total durasi per hari (exclude current record) — dynamic target
+        $carbonTanggal      = Carbon::parse($tanggal);
+        $targetMenit        = WorkingTimeService::getTargetMenitByDate($carbonTanggal, $asn);
         $totalDurasiHariIni = ProgresHarian::where('user_id', $asn->id)
             ->whereDate('tanggal', $tanggal)
             ->where('id', '!=', $id)
             ->sum('durasi_menit');
 
-        if (($totalDurasiHariIni + $durasiMenit) > 450) {
+        if ($targetMenit === 0) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Total durasi kerja hari ini tidak boleh melebihi 7 jam 30 menit (450 menit).');
+                ->with('error', 'Hari ini bukan hari kerja.');
+        }
+
+        if (($totalDurasiHariIni + $durasiMenit) > $targetMenit) {
+            $jamTarget = floor($targetMenit / 60);
+            $menitTarget = $targetMenit % 60;
+            return redirect()->back()
+                ->withInput()
+                ->with('error', "Total durasi kerja hari ini tidak boleh melebihi {$jamTarget} jam {$menitTarget} menit ({$targetMenit} menit).");
+        }
+
+        // VALIDASI: Domain link eviden harus Google (tanpa HTTP request)
+        if (!EvidenHelper::isValid($validated['link_bukti'] ?? null)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', EvidenHelper::ERROR_DOMAIN);
         }
 
         // Determine status_bukti
@@ -617,7 +737,7 @@ class HarianController extends Controller
      */
     public function destroy($id)
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $date = request('date', now()->format('Y-m-d'));
 
         // Find from database
@@ -632,7 +752,7 @@ class HarianController extends Controller
 
         // VALIDASI: Tidak bisa hapus jika tanggal sudah terkunci (bukan hari ini)
         $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
-        if (!HolidayHelper::canInputData($tanggalProgres)) {
+        if (!HolidayHelper::canInputData($tanggalProgres, $asn)) {
             return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
                 ->with('error', 'Tidak dapat menghapus data. Tanggal ini sudah terkunci (hanya bisa hapus di hari yang sama).');
         }
@@ -649,7 +769,7 @@ class HarianController extends Controller
      */
     public function editTla($id)
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $date = request('date', now()->format('Y-m-d'));
 
         // Get progres harian from database - hanya TLA
@@ -665,7 +785,7 @@ class HarianController extends Controller
 
         // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
         $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
-        if (!HolidayHelper::canInputData($tanggalProgres)) {
+        if (!HolidayHelper::canInputData($tanggalProgres, $asn)) {
             return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
                 ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
         }
@@ -682,7 +802,7 @@ class HarianController extends Controller
      */
     public function updateTla(Request $request, $id)
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
 
         // Find progres harian - hanya TLA
         $progresHarian = ProgresHarian::where('id', $id)
@@ -697,9 +817,15 @@ class HarianController extends Controller
 
         // VALIDASI: Tidak bisa edit jika tanggal sudah terkunci (bukan hari ini)
         $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
-        if (!HolidayHelper::canInputData($tanggalProgres)) {
+        if (!HolidayHelper::canInputData($tanggalProgres, $asn)) {
             return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
                 ->with('error', 'Tidak dapat mengedit data. Tanggal ini sudah terkunci (hanya bisa edit di hari yang sama).');
+        }
+
+        // Gate: Libur Khusus — Guru tidak boleh update TLA saat libur khusus
+        if ((new LiburKhususService())->isLiburKhusus($asn, Carbon::parse($tanggalProgres))) {
+            return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
+                ->with('error', 'Anda sedang berada pada periode Libur Khusus. Tidak perlu melakukan pengisian Kinerja Harian.');
         }
 
         $validated = $request->validate([
@@ -718,16 +844,33 @@ class HarianController extends Controller
         $jamSelesai = Carbon::parse($tanggal . ' ' . $validated['jam_selesai']);
         $durasiMenit = $jamSelesai->diffInMinutes($jamMulai);
 
-        // Validate total durasi per hari (exclude current record)
+        // Validate total durasi per hari (exclude current record) — dynamic target
+        $carbonTanggal      = Carbon::parse($tanggal);
+        $targetMenit        = WorkingTimeService::getTargetMenitByDate($carbonTanggal, $asn);
         $totalDurasiHariIni = ProgresHarian::where('user_id', $asn->id)
             ->whereDate('tanggal', $tanggal)
             ->where('id', '!=', $id)
             ->sum('durasi_menit');
 
-        if (($totalDurasiHariIni + $durasiMenit) > 450) {
+        if ($targetMenit === 0) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Total durasi kerja hari ini tidak boleh melebihi 7 jam 30 menit (450 menit).');
+                ->with('error', 'Hari ini bukan hari kerja.');
+        }
+
+        if (($totalDurasiHariIni + $durasiMenit) > $targetMenit) {
+            $jamTarget = floor($targetMenit / 60);
+            $menitTarget = $targetMenit % 60;
+            return redirect()->back()
+                ->withInput()
+                ->with('error', "Total durasi kerja hari ini tidak boleh melebihi {$jamTarget} jam {$menitTarget} menit ({$targetMenit} menit).");
+        }
+
+        // VALIDASI: Domain link eviden harus Google (tanpa HTTP request)
+        if (!EvidenHelper::isValid($validated['link_bukti'] ?? null)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', EvidenHelper::ERROR_DOMAIN);
         }
 
         // Determine status_bukti
@@ -753,7 +896,7 @@ class HarianController extends Controller
      */
     public function destroyTla($id)
     {
-        $asn = Auth::user();
+        $asn = Auth::user()->load('unitKerja');
         $date = request('date', now()->format('Y-m-d'));
 
         // Find - hanya TLA
@@ -769,7 +912,7 @@ class HarianController extends Controller
 
         // VALIDASI: Tidak bisa hapus jika tanggal sudah terkunci (bukan hari ini)
         $tanggalProgres = $progresHarian->tanggal->format('Y-m-d');
-        if (!HolidayHelper::canInputData($tanggalProgres)) {
+        if (!HolidayHelper::canInputData($tanggalProgres, $asn)) {
             return redirect()->route('asn.harian.index', ['date' => $tanggalProgres])
                 ->with('error', 'Tidak dapat menghapus data. Tanggal ini sudah terkunci (hanya bisa hapus di hari yang sama).');
         }

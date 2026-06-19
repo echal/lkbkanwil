@@ -64,6 +64,29 @@
         </form>
         @endif
 
+        {{-- Warning: awal bulan + bulan dipilih = bulan berjalan --}}
+        @php
+            $witaHari   = (int) now()->setTimezone('Asia/Makassar')->format('j');
+            $bulanNow   = (int) now()->setTimezone('Asia/Makassar')->format('n');
+            $tahunNow   = (int) now()->setTimezone('Asia/Makassar')->format('Y');
+            $showWarning = $witaHari <= 5
+                        && (int)$bulan  === $bulanNow
+                        && (int)$tahun  === $tahunNow;
+        @endphp
+        @if($showWarning)
+        <div class="mb-4 flex items-start gap-3 bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3">
+            <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            </svg>
+            <p class="text-sm text-yellow-800">
+                <strong>Perhatian:</strong> Anda berada di awal bulan (tanggal {{ $witaHari }}).
+                Pastikan laporan yang dikirim adalah <strong>bulan sebelumnya</strong> agar tidak terjadi kesalahan.
+                Bulan yang sedang ditampilkan: <strong>{{ $namaBulan }} {{ $tahun }}</strong>.
+            </p>
+        </div>
+        @endif
+
         {{-- Filter Tahun & Bulan --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <form method="GET" action="{{ route('asn.bulanan.index') }}" class="flex items-center justify-between">
@@ -104,7 +127,7 @@
                     @if(in_array($statusLaporan ?? 'DRAFT', ['DRAFT', 'DITOLAK']))
                     <button type="button"
                             form="form-kirim-laporan"
-                            onclick="if(confirm('Kirim laporan {{ $namaBulan }} ke atasan?')) document.getElementById('form-kirim-laporan').submit();"
+                            onclick="if(confirm('Kirim laporan {{ strtoupper($namaBulan) }} {{ $tahun }} ke atasan?\n\nPastikan bulan sudah benar sebelum melanjutkan.')) document.getElementById('form-kirim-laporan').submit();"
                             class="px-4 py-2 {{ ($statusLaporan ?? 'DRAFT') === 'DITOLAK' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700' }} text-white rounded-lg transition">
                         <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
@@ -200,7 +223,7 @@
                                         $pctColor = $pct >= 90 ? 'text-green-700' : ($pct >= 60 ? 'text-yellow-700' : 'text-red-700');
                                     @endphp
                                     <span class="font-semibold {{ $pctColor }}">{{ number_format($pct, 1) }}%</span>
-                                    <span class="block text-xs text-gray-400">dari 165 jam</span>
+                                    <span class="block text-xs text-gray-400">dari {{ $lap->target_jam ?? $targetJamKerjaBulanan }} jam</span>
                                 </td>
                                 <td class="px-4 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $lap->status_badge_class }}">
@@ -330,7 +353,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-base font-semibold text-gray-800">Riwayat Upload</h3>
-                <p class="text-xs text-gray-500 mt-0.5">Deadline upload: setiap tanggal 5 bulan berikutnya</p>
+                <p class="text-xs text-gray-500 mt-0.5">Deadline upload: setiap tanggal 10 bulan berikutnya</p>
             </div>
 
             @if($rekapAbsensiList->isEmpty())

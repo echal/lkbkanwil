@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\SkpTahunanDetail;
 use App\Models\UnitKerja;
@@ -75,6 +76,22 @@ class IndikatorKinerja extends Model
     public function unitKerja(): BelongsTo
     {
         return $this->belongsTo(UnitKerja::class, 'unit_kerja_id');
+    }
+
+    public function unitKerjas(): BelongsToMany
+    {
+        return $this->belongsToMany(UnitKerja::class, 'indikator_unit_kerja',
+            'indikator_kinerja_id', 'unit_kerja_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Nama indikator tanpa suffix unit kerja dalam kurung di akhir
+     * Contoh: "Indeks Profesionalisme ASN (Kabupaten Majene)" → "Indeks Profesionalisme ASN"
+     */
+    public function getNamaIndikatorBersihAttribute(): string
+    {
+        return trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $this->nama_indikator));
     }
 
 }
