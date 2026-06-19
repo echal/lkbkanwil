@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\HelpdeskTokenController;
 use App\Http\Controllers\Api\IndikatorTahunanController;
 use App\Http\Controllers\RhkPimpinanController;
 use App\Http\Controllers\Api\Admin\SasaranKegiatanController;
@@ -26,7 +27,10 @@ use App\Http\Controllers\Api\Atasan\ApprovalController;
 | PUBLIC ROUTES (TANPA LOGIN)
 |--------------------------------------------------------------------------
 */
-Route::post('/login', [AuthController::class, 'login']);
+// Phase J-02: throttle:5,1 — mencegah brute-force credential via API client
+// langsung (lebih mudah diotomasi daripada form web). Lihat
+// PHASE_PRODUCTION_SECURITY_AUDIT.md G5.
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 /*
 |--------------------------------------------------------------------------
