@@ -76,8 +76,11 @@ return [
     |
     */
 
-    'kakanwil_monitor_key'  => env('KAKANWIL_MONITOR_KEY', null),
-    'pasangkayu_tv_token'   => env('PASANGKAYU_TV_TOKEN', null),
+    'kakanwil_monitor_key'    => env('KAKANWIL_MONITOR_KEY', null),
+    'pasangkayu_tv_token'     => env('PASANGKAYU_TV_TOKEN', null),
+    'mamuju_tengah_tv_token'  => env('MAMUJU_TENGAH_TV_TOKEN', null),
+    'bimas_islam_monitor_token' => env('BIMAS_ISLAM_MONITOR_TOKEN', null),
+    'mamasa_monitor_token'      => env('MAMASA_MONITOR_TOKEN', null),
 
     /*
     |--------------------------------------------------------------------------
