@@ -588,15 +588,17 @@
     // =========================================================================
 
     function doInit() {
-        // Step 1: GET /api/chat/init — dapatkan XSRF-TOKEN cookie
+        // Step 1: GET /api/chat/init — dapatkan CSRF token dari response body.
+        // Tidak menggunakan readCookie('XSRF-TOKEN') karena cookie cross-origin
+        // tidak bisa dibaca via document.cookie dari domain yang berbeda.
         fetch(EP.init, { credentials: 'include' })
             .then(function (res) {
                 if (!res.ok) throw { status: res.status };
                 return res.json();
             })
-            .then(function () {
+            .then(function (data) {
                 _bootstrapped = true;
-                _csrfToken    = readCookie('XSRF-TOKEN');
+                _csrfToken    = data.csrf_token || '';
                 return loadActiveConversation();
             })
             .catch(function (err) {
