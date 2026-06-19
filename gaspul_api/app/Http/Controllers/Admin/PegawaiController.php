@@ -123,14 +123,15 @@ class PegawaiController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'nip' => 'required|unique:users|max:18',
-            'name' => 'required',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6',
-            'role' => 'required|in:ADMIN,ATASAN,ASN',
-            'unit_kerja_id' => 'nullable|exists:unit_kerja,id',
-            'jabatan' => 'nullable',
+            'nip'            => 'required|unique:users|max:18',
+            'name'           => 'required',
+            'email'          => 'required|email|unique:users',
+            'password'       => 'required|min:6',
+            'role'           => 'required|in:ADMIN,ATASAN,ASN',
+            'unit_kerja_id'  => 'nullable|exists:unit_kerja,id',
+            'jabatan'        => 'nullable',
             'status_pegawai' => 'required|in:AKTIF,NONAKTIF',
+            'hari_kerja'     => 'nullable|in:SENIN_JUMAT,SENIN_SABTU',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
@@ -156,15 +157,16 @@ class PegawaiController extends Controller
         $pegawai = User::findOrFail($id);
 
         $validated = $request->validate([
-            'nip' => ['required', 'max:18', Rule::unique('users')->ignore($pegawai)],
-            'name' => 'required',
-            'email' => ['required', 'email', Rule::unique('users')->ignore($pegawai)],
-            'password' => 'nullable|min:6',
-            'role' => 'required|in:ADMIN,ATASAN,ASN',
-            'unit_kerja_id' => 'nullable|exists:unit_kerja,id',
-            'atasan_id' => 'nullable|exists:users,id',
-            'jabatan' => 'nullable',
+            'nip'            => ['required', 'max:18', Rule::unique('users')->ignore($pegawai)],
+            'name'           => 'required',
+            'email'          => ['required', 'email', Rule::unique('users')->ignore($pegawai)],
+            'password'       => 'nullable|min:6',
+            'role'           => 'required|in:ADMIN,ATASAN,ASN',
+            'unit_kerja_id'  => 'nullable|exists:unit_kerja,id',
+            'atasan_id'      => 'nullable|exists:users,id',
+            'jabatan'        => 'nullable',
             'status_pegawai' => 'required|in:AKTIF,NONAKTIF',
+            'hari_kerja'     => 'nullable|in:SENIN_JUMAT,SENIN_SABTU',
         ]);
 
         // Only hash password if provided
@@ -174,7 +176,17 @@ class PegawaiController extends Controller
             unset($validated['password']);
         }
 
+        $atasanIdLama = $pegawai->atasan_id;
         $pegawai->update($validated);
+
+        // Sinkronisasi approved_by pada SKP DIAJUKAN jika atasan_id berubah
+        $atasanIdBaru = $pegawai->fresh()->atasan_id;
+        if ($atasanIdLama !== $atasanIdBaru && $atasanIdBaru) {
+            \App\Models\SkpTahunan::where('user_id', $pegawai->id)
+                ->where('status', 'DIAJUKAN')
+                ->update(['approved_by' => $atasanIdBaru]);
+        }
+
         return redirect()->route('admin.pegawai.index')->with('success', 'Pegawai berhasil diupdate');
     }
 

@@ -29,6 +29,7 @@ class User extends Authenticatable
         'atasan_id', // Tambahan untuk hierarki approval
         'jabatan',
         'status_pegawai',
+        'hari_kerja',
     ];
 
     /**

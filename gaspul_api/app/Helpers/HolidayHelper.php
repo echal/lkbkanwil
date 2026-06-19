@@ -45,9 +45,11 @@ class HolidayHelper
 
             // Kenaikan Yesus
             '2026-05-14' => 'Kenaikan Yesus Kristus',
+            '2026-05-15' => 'Cuti Bersama Kenaikan Yesus Kristus',
 
             // Waisak
             '2026-05-24' => 'Hari Raya Waisak 2570',
+            '2026-05-27' => 'Cuti Bersama Hari Raya Idul Adha 1447 H',
 
             // Pancasila
             '2026-06-01' => 'Hari Lahir Pancasila',
@@ -56,15 +58,16 @@ class HolidayHelper
             '2026-05-28' => 'Hari Raya Idul Adha 1447 H',
 
             // Tahun Baru Islam
-            '2026-07-17' => 'Tahun Baru Islam 1448 H',
+            '2026-06-16' => 'Tahun Baru Islam 1448 H',
 
             // Kemerdekaan RI
             '2026-08-17' => 'Hari Kemerdekaan RI',
 
             // Maulid Nabi
-            '2026-09-26' => 'Maulid Nabi Muhammad SAW',
+            '2026-08-25' => 'Maulid Nabi Muhammad SAW',
 
             // Natal
+            '2026-12-24' => 'Cuti Bersama Kelahiran Yesus Kristus',
             '2026-12-25' => 'Hari Raya Natal',
         ];
     }
@@ -94,37 +97,76 @@ class HolidayHelper
     }
 
     /**
-     * Check apakah tanggal adalah hari kerja (Senin-Jumat, bukan libur)
+     * Ambil pola hari kerja user: override personal → default unit → fallback SENIN_JUMAT.
      *
-     * @param string|Carbon $date
+     * @param \App\Models\User $user
+     * @return string 'SENIN_JUMAT' | 'SENIN_SABTU'
+     */
+    public static function getHariKerjaUser($user): string
+    {
+        if (! empty($user->hari_kerja)) {
+            return $user->hari_kerja;
+        }
+
+        if ($user->relationLoaded('unitKerja') && $user->unitKerja && ! empty($user->unitKerja->hari_kerja)) {
+            return $user->unitKerja->hari_kerja;
+        }
+
+        // Lazy-load unit kerja jika belum dimuat
+        $unitKerja = $user->unitKerja;
+        if ($unitKerja && ! empty($unitKerja->hari_kerja)) {
+            return $unitKerja->hari_kerja;
+        }
+
+        return 'SENIN_JUMAT';
+    }
+
+    /**
+     * Check apakah tanggal adalah hari kerja.
+     *
+     * Signature lama isWorkingDay($date) tetap identik — $user = null
+     * menjaga backward compatibility untuk semua caller yang tidak meneruskan user.
+     *
+     * @param string|Carbon       $date
+     * @param \App\Models\User|null $user  Jika null → logic lama (Sabtu = weekend)
      * @return bool
      */
-    public static function isWorkingDay($date): bool
+    public static function isWorkingDay($date, $user = null): bool
     {
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
 
-        // Check weekend (Sabtu = 6, Minggu = 0)
-        if ($carbon->isWeekend()) {
+        // Hari Minggu → selalu non-kerja untuk semua pola
+        if ($carbon->isSunday()) {
             return false;
         }
 
-        // Check hari libur nasional
+        // Hari libur nasional → selalu non-kerja (termasuk jika jatuh Sabtu)
         if (self::isNationalHoliday($carbon)) {
             return false;
         }
 
+        // Hari Sabtu — tergantung pola kerja
+        if ($carbon->isSaturday()) {
+            if ($user !== null && self::getHariKerjaUser($user) === 'SENIN_SABTU') {
+                return true;
+            }
+            return false; // logic lama: Sabtu = weekend
+        }
+
+        // Senin–Jumat → hari kerja
         return true;
     }
 
     /**
-     * Get warna badge untuk tanggal tertentu
+     * Get warna badge untuk tanggal tertentu.
      *
-     * @param string|Carbon $date
-     * @param bool $hasLkh
-     * @param bool $hasRhk
-     * @return array ['bg' => 'bg-color', 'text' => 'text-color', 'label' => 'Label']
+     * @param string|Carbon      $date
+     * @param bool               $hasLkh
+     * @param bool               $hasRhk
+     * @param \App\Models\User|null $user  Null → fallback behavior lama (Sabtu = non-kerja)
+     * @return array ['bg' => 'bg-color', 'text' => 'text-color', 'label' => 'Label', 'border' => '...']
      */
-    public static function getDateBadge($date, bool $hasLkh = false, bool $hasRhk = false): array
+    public static function getDateBadge($date, bool $hasLkh = false, bool $hasRhk = false, $user = null): array
     {
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
 
@@ -158,12 +200,12 @@ class HolidayHelper
             ];
         }
 
-        // Priority 4: Weekend
-        if ($carbon->isWeekend()) {
+        // Priority 4: Bukan hari kerja (user-aware: Sabtu = kerja untuk SENIN_SABTU)
+        if (!self::isWorkingDay($carbon, $user)) {
             return [
                 'bg' => 'bg-gray-100',
                 'text' => 'text-gray-600',
-                'label' => 'Weekend',
+                'label' => 'Libur / Weekend',
                 'border' => 'border-gray-300',
             ];
         }
@@ -178,24 +220,20 @@ class HolidayHelper
     }
 
     /**
-     * Check apakah tanggal bisa input LKH/RHK
-     * HANYA bisa input di HARI INI saja (tanggal kemarin sudah terkunci)
+     * Check apakah tanggal bisa input LKH/RHK.
+     * HANYA bisa input di HARI INI saja (tanggal kemarin sudah terkunci).
      *
-     * @param string|Carbon $date
+     * @param string|Carbon       $date
+     * @param \App\Models\User|null $user  Jika null → logic lama (Sabtu tidak bisa input)
      * @return bool
      */
-    public static function canInputData($date): bool
+    public static function canInputData($date, $user = null): bool
     {
         $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
-        $today = Carbon::today();
+        $today  = Carbon::today();
 
-        // Tidak bisa input di weekend
-        if ($carbon->isWeekend()) {
-            return false;
-        }
-
-        // Tidak bisa input di hari libur nasional
-        if (self::isNationalHoliday($carbon)) {
+        // Gunakan isWorkingDay dengan konteks user (backward-compatible)
+        if (! self::isWorkingDay($carbon, $user)) {
             return false;
         }
 
@@ -206,11 +244,46 @@ class HolidayHelper
 
         // PENTING: Tidak bisa input untuk tanggal KEMARIN (hanya hari ini)
         // Setelah jam 00:00 hari berganti, tanggal sebelumnya terkunci
-        if (!$carbon->isSameDay($today)) {
+        if (! $carbon->isSameDay($today)) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Hitung sisa hari kerja dari hari ini s/d akhir bulan (inklusif hari ini).
+     * Menghormati pola kerja user (SENIN_JUMAT | SENIN_SABTU) dan libur nasional.
+     * Jika bulan sudah lewat → return 0.
+     *
+     * @param int                  $bulan  1–12
+     * @param int                  $tahun
+     * @param \App\Models\User|null $user  null → fallback SENIN_JUMAT
+     * @return int
+     */
+    public static function countRemainingWorkingDays(int $bulan, int $tahun, $user = null): int
+    {
+        $today = Carbon::today();
+        $end   = Carbon::create($tahun, $bulan, 1)->endOfMonth()->startOfDay();
+
+        // Bulan sudah lewat seluruhnya
+        if ($today->gt($end)) {
+            return 0;
+        }
+
+        // Mulai dari hari ini atau awal bulan, mana yang lebih akhir
+        $start   = Carbon::create($tahun, $bulan, 1)->startOfDay();
+        $current = $today->gte($start) ? $today->copy() : $start->copy();
+        $count   = 0;
+
+        while ($current->lte($end)) {
+            if (self::isWorkingDay($current, $user)) {
+                $count++;
+            }
+            $current->addDay();
+        }
+
+        return $count;
     }
 
     /**
@@ -233,5 +306,76 @@ class HolidayHelper
         }
 
         return $result;
+    }
+
+    /**
+     * Hitung jumlah hari kerja dalam satu bulan.
+     * Mengecualikan Sabtu, Minggu, dan hari libur nasional.
+     *
+     * @param int $bulan  1–12
+     * @param int $tahun  contoh: 2026
+     * @return int
+     */
+    public static function countWorkingDaysInMonth(int $bulan, int $tahun): int
+    {
+        $start   = Carbon::create($tahun, $bulan, 1)->startOfDay();
+        $end     = $start->copy()->endOfMonth();
+        $current = $start->copy();
+        $count   = 0;
+
+        while ($current->lte($end)) {
+            if (self::isWorkingDay($current)) {
+                $count++;
+            }
+            $current->addDay();
+        }
+
+        return $count;
+    }
+
+    /**
+     * Hitung jumlah hari kerja dalam satu bulan — aware terhadap pola kerja user.
+     *
+     * Berbeda dari countWorkingDaysInMonth() yang selalu pakai Senin–Jumat,
+     * method ini mempertimbangkan apakah user masuk Sabtu (SENIN_SABTU).
+     * Libur nasional selalu dikecualikan terlepas dari pola kerja.
+     *
+     * @param int                  $bulan  1–12
+     * @param int                  $tahun  contoh: 2026
+     * @param \App\Models\User|null $user  null → fallback SENIN_JUMAT (sama dengan method lama)
+     * @return int
+     */
+    public static function countWorkingDaysInMonthUser(int $bulan, int $tahun, $user = null): int
+    {
+        $pola    = $user !== null ? self::getHariKerjaUser($user) : 'SENIN_JUMAT';
+        $start   = Carbon::create($tahun, $bulan, 1)->startOfDay();
+        $end     = $start->copy()->endOfMonth();
+        $current = $start->copy();
+        $count   = 0;
+
+        while ($current->lte($end)) {
+            // Minggu → selalu bukan hari kerja
+            if ($current->isSunday()) {
+                $current->addDay();
+                continue;
+            }
+
+            // Sabtu → hanya hari kerja jika pola SENIN_SABTU
+            if ($current->isSaturday() && $pola === 'SENIN_JUMAT') {
+                $current->addDay();
+                continue;
+            }
+
+            // Libur nasional → dikecualikan untuk semua pola (termasuk Sabtu libur)
+            if (self::isNationalHoliday($current)) {
+                $current->addDay();
+                continue;
+            }
+
+            $count++;
+            $current->addDay();
+        }
+
+        return $count;
     }
 }

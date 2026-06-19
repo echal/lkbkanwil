@@ -88,6 +88,19 @@
                 @enderror
             </div>
 
+            <div>
+                <label for="hari_kerja" class="block text-sm font-medium text-gray-700 mb-2">Hari Kerja Unit <span class="text-red-500">*</span></label>
+                <select name="hari_kerja" id="hari_kerja" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent @error('hari_kerja') border-red-500 @enderror">
+                    <option value="SENIN_JUMAT" {{ old('hari_kerja', $unit->hari_kerja ?? 'SENIN_JUMAT') === 'SENIN_JUMAT' ? 'selected' : '' }}>5 Hari (Senin–Jumat)</option>
+                    <option value="SENIN_SABTU" {{ old('hari_kerja', $unit->hari_kerja ?? 'SENIN_JUMAT') === 'SENIN_SABTU' ? 'selected' : '' }}>6 Hari (Senin–Sabtu)</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Default untuk seluruh pegawai di unit ini. Dapat di-override per pegawai.</p>
+                @error('hari_kerja')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
             <div class="flex items-center justify-end space-x-3 pt-4">
                 <a href="{{ route('admin.unit-kerja.index') }}" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
                     Batal

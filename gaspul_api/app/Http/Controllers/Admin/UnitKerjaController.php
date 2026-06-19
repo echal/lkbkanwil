@@ -13,10 +13,11 @@ class UnitKerjaController extends Controller
      */
     public function index()
     {
-        // Root units dengan eager load children (2 level) + users_count
+        // Root units dengan eager load children (3 level) + users_count
         $units = UnitKerja::with([
-                'children'          => fn($q) => $q->withCount('users'),
-                'children.children' => fn($q) => $q->withCount('users'),
+                'children'                   => fn($q) => $q->withCount('users'),
+                'children.children'          => fn($q) => $q->withCount('users'),
+                'children.children.children' => fn($q) => $q->withCount('users'),
             ])
             ->withCount('users')
             ->whereNull('parent_id')
@@ -36,11 +37,12 @@ class UnitKerjaController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'kode_unit' => 'required|unique:unit_kerja|max:20',
-            'nama_unit' => 'required',
-            'eselon'    => 'nullable|max:20',
-            'parent_id' => 'nullable|exists:unit_kerja,id',
-            'status'    => 'required|in:AKTIF,NONAKTIF',
+            'kode_unit'  => 'required|unique:unit_kerja|max:20',
+            'nama_unit'  => 'required',
+            'eselon'     => 'nullable|max:20',
+            'parent_id'  => 'nullable|exists:unit_kerja,id',
+            'status'     => 'required|in:AKTIF,NONAKTIF',
+            'hari_kerja' => 'required|in:SENIN_JUMAT,SENIN_SABTU',
         ]);
 
         // Hitung level otomatis dari parent
@@ -69,11 +71,12 @@ class UnitKerjaController extends Controller
         $unit = UnitKerja::findOrFail($id);
 
         $validated = $request->validate([
-            'kode_unit' => 'required|max:20|unique:unit_kerja,kode_unit,' . $id,
-            'nama_unit' => 'required',
-            'eselon'    => 'nullable|max:20',
-            'parent_id' => 'nullable|exists:unit_kerja,id',
-            'status'    => 'required|in:AKTIF,NONAKTIF',
+            'kode_unit'  => 'required|max:20|unique:unit_kerja,kode_unit,' . $id,
+            'nama_unit'  => 'required',
+            'eselon'     => 'nullable|max:20',
+            'parent_id'  => 'nullable|exists:unit_kerja,id',
+            'status'     => 'required|in:AKTIF,NONAKTIF',
+            'hari_kerja' => 'required|in:SENIN_JUMAT,SENIN_SABTU',
         ]);
 
         // Cegah circular reference

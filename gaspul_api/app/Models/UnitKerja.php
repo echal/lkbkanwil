@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 
@@ -18,6 +19,7 @@ class UnitKerja extends Model
         'parent_id',
         'level',
         'status',
+        'hari_kerja',
     ];
 
     protected $casts = [
@@ -53,6 +55,14 @@ class UnitKerja extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class, 'unit_kerja_id');
+    }
+
+    /** Indikator kinerja yang dipetakan ke unit ini (via pivot) */
+    public function indikatorKinerjas(): BelongsToMany
+    {
+        return $this->belongsToMany(IndikatorKinerja::class, 'indikator_unit_kerja',
+            'unit_kerja_id', 'indikator_kinerja_id')
+            ->withTimestamps();
     }
 
     // =========================================================================
