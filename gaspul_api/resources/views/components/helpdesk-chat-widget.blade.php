@@ -346,7 +346,7 @@
         create:   HD_BASE + '/api/chat/conversations',
         messages: HD_BASE + '/api/chat/conversations/{id}/messages',
         send:     HD_BASE + '/api/chat/conversations/{id}/messages',
-        poll:     HD_BASE + '/api/chat/conversations/{id}/messages/poll',
+        poll:     HD_BASE + '/api/chat/conversations/{id}/poll',
         unread:   HD_BASE + '/api/chat/unread-count',
         close:    HD_BASE + '/api/chat/conversations/{id}/close',
         read:     HD_BASE + '/api/chat/conversations/{id}/messages/read',
