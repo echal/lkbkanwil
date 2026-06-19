@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Atasan;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Services\WorkingTimeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -115,20 +117,17 @@ class RekapKinerjaCetakController extends Controller
     // ========================================================================
 
     /**
-     * Get rekap mingguan (REUSE from RekapKinerjaController)
+     * Get rekap mingguan — dynamic target per pola kerja ASN.
+     * SQL subquery >= 450 diganti PHP loop via WorkingTimeService::getTargetMenitByDate().
      */
     private function getRekapMingguan($atasan_id, $week, $year)
     {
-        // Calculate date range for the week (ISO 8601 week)
         $startDate = Carbon::now()->setISODate($year, $week)->startOfWeek();
-        $endDate = Carbon::now()->setISODate($year, $week)->endOfWeek();
+        $endDate   = Carbon::now()->setISODate($year, $week)->endOfWeek();
 
-        // Total days in week (usually 7, but could be less at year boundaries)
-        $totalDaysInWeek = $startDate->diffInDays($endDate) + 1;
-
-        // ⚡ OPTIMIZED QUERY - Single query untuk semua ASN
-        $result = DB::table('users as u')
-            ->leftJoin('progres_harian as ph', function($join) use ($startDate, $endDate) {
+        // Query agregat ringan — tanpa subquery 450
+        $rows = DB::table('users as u')
+            ->leftJoin('progres_harian as ph', function ($join) use ($startDate, $endDate) {
                 $join->on('u.id', '=', 'ph.user_id')
                      ->whereBetween('ph.tanggal', [$startDate->toDateString(), $endDate->toDateString()]);
             })
@@ -136,49 +135,95 @@ class RekapKinerjaCetakController extends Controller
             ->where('u.role', 'ASN')
             ->where('u.status_pegawai', 'AKTIF')
             ->select(
-                'u.id',
-                'u.name',
-                'u.nip',
-                DB::raw('COUNT(DISTINCT DATE(ph.tanggal)) as hari_kerja'),
+                'u.id', 'u.name', 'u.nip', 'u.hari_kerja as pola_kerja', 'u.unit_kerja_id',
                 DB::raw('SUM(ph.durasi_menit) as total_menit'),
                 DB::raw('COUNT(CASE WHEN ph.tipe_progres = "KINERJA_HARIAN" THEN 1 END) as total_kh'),
-                DB::raw('COUNT(CASE WHEN ph.tipe_progres = "TUGAS_ATASAN" THEN 1 END) as total_tla'),
-                DB::raw('COUNT(DISTINCT CASE WHEN ph.tanggal IS NOT NULL AND (SELECT SUM(durasi_menit) FROM progres_harian WHERE user_id = u.id AND tanggal = ph.tanggal) >= 450 THEN DATE(ph.tanggal) END) as hari_lengkap'),
-                DB::raw('COUNT(DISTINCT CASE WHEN ph.tanggal IS NOT NULL AND (SELECT SUM(durasi_menit) FROM progres_harian WHERE user_id = u.id AND tanggal = ph.tanggal) < 450 THEN DATE(ph.tanggal) END) as hari_tidak_lengkap')
+                DB::raw('COUNT(CASE WHEN ph.tipe_progres = "TUGAS_ATASAN" THEN 1 END) as total_tla')
             )
-            ->groupBy('u.id', 'u.name', 'u.nip')
+            ->groupBy('u.id', 'u.name', 'u.nip', 'u.hari_kerja', 'u.unit_kerja_id')
             ->orderBy('u.name')
             ->get();
 
-        // Calculate derived metrics
-        return $result->map(function($asn) use ($totalDaysInWeek) {
-            $asn->total_jam = $this->formatDurasi($asn->total_menit);
-            $asn->avg_jam_per_hari = $asn->hari_kerja > 0 ? round($asn->total_menit / $asn->hari_kerja / 60, 1) : 0;
-            $asn->hari_kosong = $totalDaysInWeek - $asn->hari_kerja;
+        // Progres per tanggal per user — 1 query untuk semua ASN
+        $progresPerUser = DB::table('progres_harian')
+            ->whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereIn('user_id', $rows->pluck('id'))
+            ->select('user_id', 'tanggal', DB::raw('SUM(durasi_menit) as total'))
+            ->groupBy('user_id', 'tanggal')
+            ->get()
+            ->groupBy('user_id');
 
-            // Calculate status based on % hari lengkap
-            $persen_lengkap = $totalDaysInWeek > 0 ? ($asn->hari_lengkap / $totalDaysInWeek) * 100 : 0;
-            $asn->status = $this->calculateStatusRekap($persen_lengkap);
+        // Load unit kerja untuk cascade pola kerja
+        $unitKerjaMap = DB::table('unit_kerja')
+            ->whereIn('id', $rows->pluck('unit_kerja_id')->filter()->unique())
+            ->pluck('hari_kerja', 'id');
+
+        return $rows->map(function ($asn) use ($startDate, $endDate, $progresPerUser, $unitKerjaMap) {
+            // Resolve pola kerja (cascade: user → unit_kerja → SENIN_JUMAT)
+            $valid = ['SENIN_JUMAT', 'SENIN_SABTU'];
+            $pola  = in_array($asn->pola_kerja, $valid) ? $asn->pola_kerja
+                   : (in_array($unitKerjaMap[$asn->unit_kerja_id] ?? null, $valid) ? $unitKerjaMap[$asn->unit_kerja_id] : 'SENIN_JUMAT');
+
+            // Buat user-like object untuk WorkingTimeService
+            $userObj             = new \stdClass();
+            $userObj->hari_kerja = $pola;
+            $userObj->unitKerja  = null;
+
+            // Hitung hari lengkap/tidak per tanggal dengan target dinamis
+            $hariLengkap      = 0;
+            $hariTidakLengkap = 0;
+            $hariKerja        = 0;
+
+            $userProgres = $progresPerUser->get($asn->id, collect());
+            $progresMap  = $userProgres->keyBy('tanggal');
+
+            $current = $startDate->copy();
+            while ($current->lte($endDate)) {
+                $targetMenit = WorkingTimeService::getTargetMenitByDate($current, $userObj);
+                if ($targetMenit === 0) {
+                    $current->addDay();
+                    continue; // libur / bukan hari kerja
+                }
+
+                $hariKerja++;
+                $dateKey    = $current->toDateString();
+                $totalHari  = (int) ($progresMap->get($dateKey)->total ?? 0);
+
+                if ($totalHari >= $targetMenit) {
+                    $hariLengkap++;
+                } else {
+                    $hariTidakLengkap++;
+                }
+
+                $current->addDay();
+            }
+
+            $asn->hari_kerja        = $hariKerja;
+            $asn->hari_lengkap      = $hariLengkap;
+            $asn->hari_tidak_lengkap = $hariTidakLengkap;
+            $asn->hari_kosong       = max(0, $hariKerja - ($hariLengkap + $hariTidakLengkap));
+            $asn->total_jam         = $this->formatDurasi((int) $asn->total_menit);
+            $asn->avg_jam_per_hari  = $hariKerja > 0 ? round($asn->total_menit / $hariKerja / 60, 1) : 0;
+
+            $persen_lengkap = $hariKerja > 0 ? ($hariLengkap / $hariKerja) * 100 : 0;
+            $asn->status    = $this->calculateStatusRekap($persen_lengkap);
 
             return $asn;
         });
     }
 
     /**
-     * Get rekap bulanan (REUSE from RekapKinerjaController)
+     * Get rekap bulanan — dynamic target per pola kerja ASN.
+     * SQL subquery >= 450 diganti PHP loop via WorkingTimeService::getTargetMenitByDate().
      */
     private function getRekapBulanan($atasan_id, $month, $year)
     {
-        // Calculate date range for the month
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
-        $endDate = Carbon::create($year, $month, 1)->endOfMonth();
+        $endDate   = Carbon::create($year, $month, 1)->endOfMonth();
 
-        // Total days in month
-        $totalDaysInMonth = $startDate->daysInMonth;
-
-        // ⚡ OPTIMIZED QUERY - Single query untuk semua ASN
-        $result = DB::table('users as u')
-            ->leftJoin('progres_harian as ph', function($join) use ($startDate, $endDate) {
+        // Query agregat ringan — tanpa subquery 450
+        $rows = DB::table('users as u')
+            ->leftJoin('progres_harian as ph', function ($join) use ($startDate, $endDate) {
                 $join->on('u.id', '=', 'ph.user_id')
                      ->whereBetween('ph.tanggal', [$startDate->toDateString(), $endDate->toDateString()]);
             })
@@ -186,29 +231,80 @@ class RekapKinerjaCetakController extends Controller
             ->where('u.role', 'ASN')
             ->where('u.status_pegawai', 'AKTIF')
             ->select(
-                'u.id',
-                'u.name',
-                'u.nip',
-                DB::raw('COUNT(DISTINCT DATE(ph.tanggal)) as hari_kerja'),
+                'u.id', 'u.name', 'u.nip', 'u.hari_kerja as pola_kerja', 'u.unit_kerja_id',
                 DB::raw('SUM(ph.durasi_menit) as total_menit'),
                 DB::raw('COUNT(CASE WHEN ph.tipe_progres = "KINERJA_HARIAN" THEN 1 END) as total_kh'),
-                DB::raw('COUNT(CASE WHEN ph.tipe_progres = "TUGAS_ATASAN" THEN 1 END) as total_tla'),
-                DB::raw('COUNT(DISTINCT CASE WHEN ph.tanggal IS NOT NULL AND (SELECT SUM(durasi_menit) FROM progres_harian WHERE user_id = u.id AND tanggal = ph.tanggal) >= 450 THEN DATE(ph.tanggal) END) as hari_lengkap'),
-                DB::raw('COUNT(DISTINCT CASE WHEN ph.tanggal IS NOT NULL AND (SELECT SUM(durasi_menit) FROM progres_harian WHERE user_id = u.id AND tanggal = ph.tanggal) < 450 THEN DATE(ph.tanggal) END) as hari_tidak_lengkap')
+                DB::raw('COUNT(CASE WHEN ph.tipe_progres = "TUGAS_ATASAN" THEN 1 END) as total_tla')
             )
-            ->groupBy('u.id', 'u.name', 'u.nip')
+            ->groupBy('u.id', 'u.name', 'u.nip', 'u.hari_kerja', 'u.unit_kerja_id')
             ->orderBy('u.name')
             ->get();
 
-        // Calculate derived metrics
-        return $result->map(function($asn) use ($totalDaysInMonth) {
-            $asn->total_jam = $this->formatDurasi($asn->total_menit);
-            $asn->avg_jam_per_hari = $asn->hari_kerja > 0 ? round($asn->total_menit / $asn->hari_kerja / 60, 1) : 0;
-            $asn->hari_kosong = $totalDaysInMonth - $asn->hari_kerja;
+        // Progres per tanggal per user — 1 query untuk semua ASN
+        $progresPerUser = DB::table('progres_harian')
+            ->whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereIn('user_id', $rows->pluck('id'))
+            ->select('user_id', 'tanggal', DB::raw('SUM(durasi_menit) as total'))
+            ->groupBy('user_id', 'tanggal')
+            ->get()
+            ->groupBy('user_id');
 
-            // Calculate status based on % hari lengkap
-            $persen_lengkap = $totalDaysInMonth > 0 ? ($asn->hari_lengkap / $totalDaysInMonth) * 100 : 0;
-            $asn->status = $this->calculateStatusRekap($persen_lengkap);
+        // Load unit kerja untuk cascade pola kerja
+        $unitKerjaMap = DB::table('unit_kerja')
+            ->whereIn('id', $rows->pluck('unit_kerja_id')->filter()->unique())
+            ->pluck('hari_kerja', 'id');
+
+        return $rows->map(function ($asn) use ($startDate, $endDate, $progresPerUser, $unitKerjaMap) {
+            // Resolve pola kerja (cascade: user → unit_kerja → SENIN_JUMAT)
+            $valid = ['SENIN_JUMAT', 'SENIN_SABTU'];
+            $pola  = in_array($asn->pola_kerja, $valid) ? $asn->pola_kerja
+                   : (in_array($unitKerjaMap[$asn->unit_kerja_id] ?? null, $valid) ? $unitKerjaMap[$asn->unit_kerja_id] : 'SENIN_JUMAT');
+
+            $userObj             = new \stdClass();
+            $userObj->hari_kerja = $pola;
+            $userObj->unitKerja  = null;
+
+            // Hitung hari lengkap/tidak per tanggal dengan target dinamis
+            $hariLengkap      = 0;
+            $hariTidakLengkap = 0;
+            $hariKerja        = 0;
+
+            $userProgres = $progresPerUser->get($asn->id, collect());
+            $progresMap  = $userProgres->keyBy('tanggal');
+
+            $current = $startDate->copy();
+            while ($current->lte($endDate)) {
+                $targetMenit = WorkingTimeService::getTargetMenitByDate($current, $userObj);
+                if ($targetMenit === 0) {
+                    $current->addDay();
+                    continue; // libur / bukan hari kerja
+                }
+
+                $hariKerja++;
+                $dateKey   = $current->toDateString();
+                $totalHari = (int) ($progresMap->get($dateKey)->total ?? 0);
+
+                if ($totalHari >= $targetMenit) {
+                    $hariLengkap++;
+                } else {
+                    $hariTidakLengkap++;
+                }
+
+                $current->addDay();
+            }
+
+            $asn->hari_kerja         = $hariKerja;
+            $asn->hari_lengkap       = $hariLengkap;
+            $asn->hari_tidak_lengkap = $hariTidakLengkap;
+            $asn->hari_kosong        = max(0, $hariKerja - ($hariLengkap + $hariTidakLengkap));
+            $asn->total_jam          = $this->formatDurasi((int) $asn->total_menit);
+            $asn->avg_jam_per_hari   = $hariKerja > 0 ? round($asn->total_menit / $hariKerja / 60, 1) : 0;
+
+            // TODO PHASE 6: snapshot target_menit_bulanan saat approval
+            // agar histori laporan yang sudah DISETUJUI tidak berubah retroaktif
+            // jika pola kerja ASN diubah di masa depan.
+            $persen_lengkap = $hariKerja > 0 ? ($hariLengkap / $hariKerja) * 100 : 0;
+            $asn->status    = $this->calculateStatusRekap($persen_lengkap);
 
             return $asn;
         });

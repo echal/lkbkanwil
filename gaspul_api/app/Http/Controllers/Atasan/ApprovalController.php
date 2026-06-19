@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Atasan;
 
 use App\Http\Controllers\Controller;
 use App\Models\LaporanBulananKinerja;
+use App\Models\ProgresHarian;
 use App\Models\RencanaAksiBulanan;
 use App\Models\RekapAbsensiPusaka;
 use App\Models\SkpTahunan;
 use App\Services\LaporanBulananService;
 use App\Services\RekapAbsensiService;
+use App\Services\WorkingTimeService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -58,15 +60,26 @@ class ApprovalController extends Controller
         $skpRejectedCount = $skpList->where('status', 'DITOLAK')->count();
 
         // ── Tab 2: Rekap Absensi PUSAKA ───────────────────────────────────────
-        $rekapFilter = $request->input('rekap_filter', 'semua');
+        // Default filter: tampilkan item yang memang menunggu approval user saat ini
+        $defaultRekapFilter = $isKabid
+            ? ($atasan->atasan_id == 293 && stripos($atasan->jabatan ?? '', 'kepala kantor') !== false
+                ? RekapAbsensiPusaka::STATUS_PENDING_KANKEMENAG
+                : RekapAbsensiPusaka::STATUS_PENDING_KABID)
+            : RekapAbsensiPusaka::STATUS_PENDING_KAKANWIL;
+
+        $rekapFilter = $request->input('rekap_filter', $defaultRekapFilter);
         $rekapBulan  = $request->input('rekap_bulan', 'semua');
+        $rekapNip    = $request->input('rekap_nip');
 
         if ($isKabid) {
-            $rekapList         = $this->rekapService->getForKabid($atasan->id, $rekapFilter, $rekapBulan);
+            $pendingStatus     = $atasan->atasan_id == 293 && stripos($atasan->jabatan ?? '', 'kepala kantor') !== false
+                ? RekapAbsensiPusaka::STATUS_PENDING_KANKEMENAG
+                : RekapAbsensiPusaka::STATUS_PENDING_KABID;
+            $rekapList         = $this->rekapService->getForKabid($atasan->id, $rekapFilter, $rekapBulan, $rekapNip);
             $rekapPendingCount = $this->rekapService->getForKabid($atasan->id)
-                                     ->where('status', RekapAbsensiPusaka::STATUS_PENDING_KABID)->count();
+                                     ->where('status', $pendingStatus)->count();
         } else {
-            $rekapList         = $this->rekapService->getForKakanwil($atasan->id, $rekapFilter, $rekapBulan);
+            $rekapList         = $this->rekapService->getForKakanwil($atasan->id, $rekapFilter, $rekapBulan, $rekapNip);
             $rekapPendingCount = $this->rekapService->getForKakanwil($atasan->id)
                                      ->where('status', RekapAbsensiPusaka::STATUS_PENDING_KAKANWIL)->count();
         }
@@ -88,6 +101,7 @@ class ApprovalController extends Controller
             'laporanPendingCount',
             'rekapFilter',
             'rekapBulan',
+            'rekapNip',
             'laporanFilter',
             'laporanBulan',
             'activeTab',
@@ -108,8 +122,9 @@ class ApprovalController extends Controller
         try {
             if ($atasan->atasan_id !== null) {
                 $rekap = $this->rekapService->approveKabid($atasan->id, $id, $catatan);
-                $msg   = 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name
-                       . ' diteruskan ke Kakanwil.';
+                $msg   = $atasan->atasan_id == 293
+                    ? 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name . ' diteruskan ke Kakanwil.'
+                    : 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name . ' diteruskan ke Kankemenag Kab.';
             } else {
                 $rekap = $this->rekapService->approveKakanwil($atasan->id, $id, $catatan);
                 $msg   = 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name
@@ -144,8 +159,9 @@ class ApprovalController extends Controller
         try {
             if ($atasan->atasan_id !== null) {
                 $rekap = $this->rekapService->rejectKabid($atasan->id, $id, $request->catatan);
-                $msg   = 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name
-                       . ' ditolak oleh Kabid.';
+                $msg   = $atasan->atasan_id == 293
+                    ? 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name . ' ditolak oleh Kankemenag Kab.'
+                    : 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name . ' ditolak oleh Kepala Madrasah.';
             } else {
                 $rekap = $this->rekapService->rejectKakanwil($atasan->id, $id, $request->catatan);
                 $msg   = 'Rekap absensi ' . $rekap->nama_bulan . ' atas nama ' . $rekap->user->name
@@ -257,7 +273,7 @@ class ApprovalController extends Controller
             : collect();
 
         // Rekap harian via service
-        $rekapHarian = $this->laporanService->getRekapHarian($asn->id, $bulan, $tahun);
+        $rekapHarian = $this->laporanService->getRekapHarian($asn->id, $bulan, $tahun, $asn);
         $summary     = $this->laporanService->getSummary($rekapHarian, $tahun, $bulan);
 
         $namaBulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -265,15 +281,43 @@ class ApprovalController extends Controller
         $periode      = ($namaBulan[$bulan] ?? $bulan) . ' ' . $tahun;
         $tanggalCetak = Carbon::now()->locale('id')->isoFormat('D MMMM Y, HH:mm') . ' WIB';
 
+        // Target jam kerja bulanan — gunakan snapshot jika tersedia
+        $targetMenitBulanan = $laporan->target_menit_bulanan_snapshot
+            ?? WorkingTimeService::getTargetMenitBulanan($bulan, $tahun, $asn);
+        $targetJamBulanan   = $laporan->target_jam_bulanan_snapshot
+            ?? round($targetMenitBulanan / 60, 2);
+        $polaKerja          = $laporan->pola_kerja_snapshot
+            ?? \App\Helpers\HolidayHelper::getHariKerjaUser($asn);
+
+        // Detail KH & TLA per hari (1 query, grouped di PHP)
+        $dateObj      = Carbon::create($tahun, $bulan, 1);
+        $detailHarian = ProgresHarian::where('user_id', $asn->id)
+            ->whereBetween('tanggal', [
+                $dateObj->copy()->startOfMonth(),
+                $dateObj->copy()->endOfMonth(),
+            ])
+            ->with(['rencanaAksiBulanan.skpTahunanDetail.indikatorKinerja'])
+            ->orderBy('tanggal')
+            ->orderBy('jam_mulai')
+            ->get()
+            ->groupBy(fn($p) => $p->tanggal->format('Y-m-d'));
+
+        $asn->load('atasan');
+
         $pdf = \PDF::loadView('asn.laporan.pdf.bulanan', [
-            'asn'          => $asn,
-            'periode'      => $periode,
-            'bulan'        => $bulan,
-            'tahun'        => $tahun,
-            'rencanaAksi'  => $rencanaAksi,
-            'rekapHarian'  => $rekapHarian,
-            'summary'      => $summary,
-            'tanggal_cetak'=> $tanggalCetak,
+            'asn'                  => $asn,
+            'atasan'               => $asn->atasan,
+            'periode'              => $periode,
+            'bulan'                => $bulan,
+            'tahun'                => $tahun,
+            'rencanaAksi'          => $rencanaAksi,
+            'rekapHarian'          => $rekapHarian,
+            'summary'              => $summary,
+            'detailHarian'         => $detailHarian,
+            'target_menit_bulanan' => $targetMenitBulanan,
+            'target_jam_bulanan'   => $targetJamBulanan,
+            'pola_kerja'           => $polaKerja,
+            'tanggal_cetak'        => $tanggalCetak,
         ]);
 
         $pdf->setPaper('A4', 'landscape');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SkpTahunan;
 use App\Models\User;
 use App\Models\UnitKerja;
+use App\Services\SubordinateService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -33,48 +34,29 @@ class SkpTahunanAtasanController extends Controller
         $unitKerjaId = $request->input('unit_kerja_id');
         $searchAsn = $request->input('search_asn');
 
-        // Query SKP Tahunan dari bawahan
+        $service = new SubordinateService();
+        $isKepalaKab = $service->isKepalaKankemenagKab($atasan);
+
+        // ========================================================================
+        // TENTUKAN USER ID YANG BISA DILIHAT SKP-nya
+        // Kepala Kankemenag Kab: L1 + L2 strategis (read-only untuk L2)
+        // Atasan biasa: hanya L1 langsung (atasan_id = atasan->id)
+        // ========================================================================
+        if ($isKepalaKab) {
+            $visibleUserIds = $service->getMonitorableIds($atasan);
+        } else {
+            $visibleUserIds = User::where('atasan_id', $atasan->id)->pluck('id');
+        }
+
+        // Query SKP Tahunan dari bawahan yang visible
         $query = SkpTahunan::with([
             'user.unitKerja',
-            'user.atasan', // Load relasi atasan untuk validasi hierarki
+            'user.atasan',
             'details.indikatorKinerja.sasaranKegiatan',
             'approver'
-        ]);
-
-        // ========================================================================
-        // HIERARKI APPROVAL LOGIC (NEW)
-        // Prioritas: Approval berbasis relasi atasan_id > unit_kerja_id (fallback)
-        // ========================================================================
-
-        // LOGIC BARU: Filter by hierarki (atasan_id)
-        // Atasan hanya melihat SKP dari bawahan langsung (atasan_id = atasan->id)
-        $query->whereHas('user', function($q) use ($atasan) {
-            $q->where('atasan_id', $atasan->id);
+        ])->whereHas('user', function($q) use ($visibleUserIds) {
+            $q->whereIn('id', $visibleUserIds);
         });
-
-        // FALLBACK LOGIC LAMA: Jika tidak ada bawahan dengan atasan_id,
-        // gunakan logic unit_kerja (backward compatible untuk data lama)
-        $hasBawahanWithHierarki = User::where('atasan_id', $atasan->id)->exists();
-
-        if (!$hasBawahanWithHierarki) {
-            // Fallback ke logic lama (unit kerja)
-            $query = SkpTahunan::with([
-                'user.unitKerja',
-                'user.atasan',
-                'details.indikatorKinerja.sasaranKegiatan',
-                'approver'
-            ]);
-
-            if ($unitKerjaId) {
-                $query->whereHas('user', function($q) use ($unitKerjaId) {
-                    $q->where('unit_kerja_id', $unitKerjaId);
-                });
-            } elseif ($atasan->unit_kerja_id) {
-                $query->whereHas('user', function($q) use ($atasan) {
-                    $q->where('unit_kerja_id', $atasan->unit_kerja_id);
-                });
-            }
-        }
 
         // Filter by tahun
         $query->where('tahun', $tahun);
@@ -82,6 +64,13 @@ class SkpTahunanAtasanController extends Controller
         // Filter by status (optional)
         if ($status) {
             $query->where('status', $status);
+        }
+
+        // Filter by unit kerja (optional)
+        if ($unitKerjaId) {
+            $query->whereHas('user', function($q) use ($unitKerjaId) {
+                $q->where('unit_kerja_id', $unitKerjaId);
+            });
         }
 
         // Filter by nama pegawai (optional)
@@ -92,61 +81,59 @@ class SkpTahunanAtasanController extends Controller
             });
         }
 
-        // ========================================================================
-        // FILTER BERBASIS approved_by (BUKAN ROLE!)
-        // Hanya tampilkan SKP yang approved_by = auth()->id()
-        // Ini memastikan SEMUA role (ASN/ATASAN) yang punya atasan bisa muncul
-        // ========================================================================
-        $query->where('approved_by', $atasan->id);
-
         // Order by latest
         $skpList = $query->latest()->paginate(15);
 
         // Get unit kerja list for filter
         $unitKerjaList = UnitKerja::where('status', 'AKTIF')->get();
 
-        // Count pending revision requests (REVISI_DIAJUKAN)
-        // Berbasis approved_by, bukan role atau unit_kerja
+        // Pending counts — berbasis approved_by (hanya L1 langsung yang bisa diapprove)
         $pendingRevisionCount = SkpTahunan::where('status', 'REVISI_DIAJUKAN')
             ->where('tahun', $tahun)
             ->where('approved_by', $atasan->id)
             ->count();
 
-        // Count pending approval (DIAJUKAN)
-        // Berbasis approved_by, bukan role atau unit_kerja
         $pendingApprovalCount = SkpTahunan::where('status', 'DIAJUKAN')
             ->where('tahun', $tahun)
             ->where('approved_by', $atasan->id)
             ->count();
 
         // Prepare data for view
-        $skpData = $skpList->map(function($skp) {
+        // can_approve: true hanya jika approved_by = atasan ini (bukan read-only L2)
+        $skpData = $skpList->map(function($skp) use ($atasan) {
+            $canApprove = in_array($skp->status, ['DIAJUKAN'])
+                && (int)$skp->approved_by === (int)$atasan->id;
+            $canActRevisi = in_array($skp->status, ['REVISI_DIAJUKAN'])
+                && (int)$skp->approved_by === (int)$atasan->id;
             return [
-                'id' => $skp->id,
-                'asn_nama' => $skp->user->name,
-                'asn_nip' => $skp->user->nip ?? '-',
-                'asn_jabatan' => $skp->user->jabatan ?? '-',
-                'unit_kerja' => $skp->user->unitKerja->nama_unit ?? '-',
-                'tahun' => $skp->tahun,
-                'status' => $skp->status,
-                'total_rhk' => $skp->details->count(),
-                'catatan_atasan' => $skp->catatan_atasan,
+                'id'               => $skp->id,
+                'asn_nama'         => $skp->user->name,
+                'asn_nip'          => $skp->user->nip ?? '-',
+                'asn_jabatan'      => $skp->user->jabatan ?? '-',
+                'unit_kerja'       => $skp->user->unitKerja->nama_unit ?? '-',
+                'tahun'            => $skp->tahun,
+                'status'           => $skp->status,
+                'total_rhk'        => $skp->details->count(),
+                'catatan_atasan'   => $skp->catatan_atasan,
                 'approved_by_name' => $skp->approver->name ?? null,
-                'approved_at' => $skp->approved_at,
-                'can_approve' => in_array($skp->status, ['DIAJUKAN']),
+                'approved_at'      => $skp->approved_at,
+                'can_approve'      => $canApprove,
+                'can_act_revisi'   => $canActRevisi,
+                'is_readonly'      => (int)$skp->approved_by !== (int)$atasan->id,
             ];
         });
 
         return view('atasan.skp-tahunan.index', [
-            'skpList' => $skpList,
-            'skpData' => $skpData,
-            'tahun' => $tahun,
-            'status' => $status,
-            'unitKerjaId' => $unitKerjaId,
-            'searchAsn' => $searchAsn,
-            'unitKerjaList' => $unitKerjaList,
+            'skpList'              => $skpList,
+            'skpData'              => $skpData,
+            'tahun'                => $tahun,
+            'status'               => $status,
+            'unitKerjaId'          => $unitKerjaId,
+            'searchAsn'            => $searchAsn,
+            'unitKerjaList'        => $unitKerjaList,
             'pendingRevisionCount' => $pendingRevisionCount,
             'pendingApprovalCount' => $pendingApprovalCount,
+            'isKepalaKab'          => $isKepalaKab,
         ]);
     }
 
@@ -179,12 +166,24 @@ class SkpTahunanAtasanController extends Controller
 
         $atasan = Auth::user();
 
-        // VALIDATION: Hanya check approved_by
-        // Backward compatible: jika approved_by null, allow (data lama)
-        // Gunakan != (loose) bukan !== (strict) untuk handle type mismatch int vs string dari DB
-        if ($skp->approved_by != null && (int)$skp->approved_by !== (int)$atasan->id) {
-            abort(403, 'Anda tidak memiliki akses ke SKP ini. SKP ini bukan tanggung jawab Anda.');
+        $service = new SubordinateService();
+        $isKepalaKab = $service->isKepalaKankemenagKab($atasan);
+
+        // Cek apakah ASN ini boleh dilihat oleh atasan yang login
+        $allowedIds = $service->getMonitorableIds($atasan);
+        $isMonitorable = $allowedIds->contains($skp->user->id);
+
+        // Jika tidak masuk daftar monitorable, tolak akses
+        if (!$isMonitorable) {
+            // Fallback rotasi jabatan: approved_by = atasan lama tapi ASN sudah pindah ke atasan ini
+            $isCurrentAtasan = (int)$skp->user->atasan_id === (int)$atasan->id;
+            if (!$isCurrentAtasan) {
+                abort(403, 'Anda tidak memiliki akses ke SKP ini.');
+            }
         }
+
+        // can_approve: hanya jika approved_by = atasan ini (bukan read-only L2)
+        $isReadonly = (int)$skp->approved_by !== (int)$atasan->id;
 
         // Prepare detail data
         $rhkList = $skp->details->map(function($detail) {
@@ -203,10 +202,12 @@ class SkpTahunanAtasanController extends Controller
         });
 
         return view('atasan.skp-tahunan.show', [
-            'skp' => $skp,
-            'asn' => $skp->user,
-            'rhkList' => $rhkList,
-            'canApprove' => in_array($skp->status, ['DIAJUKAN']),
+            'skp'        => $skp,
+            'asn'        => $skp->user,
+            'rhkList'    => $rhkList,
+            'canApprove' => !$isReadonly && in_array($skp->status, ['DIAJUKAN']),
+            'canRevisi'  => !$isReadonly && in_array($skp->status, ['REVISI_DIAJUKAN']),
+            'isReadonly' => $isReadonly,
         ]);
     }
 

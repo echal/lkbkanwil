@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\ProgresHarian;
 use App\Models\RencanaAksiBulanan;
 use App\Models\SkpTahunan;
+use App\Services\SubordinateService;
+use App\Services\WorkingTimeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -37,10 +39,12 @@ class KinerjaBawahanController extends Controller
         $bulan = $request->input('bulan', now()->month);
         $viewMode = $request->input('view_mode', 'bulanan'); // bulanan | tahunan
 
-        // Get ASN bawahan langsung berdasarkan atasan_id
-        $asnList = User::where('role', 'ASN')
-            ->where('status_pegawai', 'AKTIF')
-            ->where('atasan_id', $atasan->id)
+        $service = new SubordinateService();
+        $isKepalaKab = $service->isKepalaKankemenagKab($atasan);
+        $subordinateIds = $service->getMonitorableIds($atasan);
+
+        $asnList = User::whereIn('id', $subordinateIds)
+            ->with('unitKerja')
             ->orderBy('name')
             ->get();
 
@@ -59,6 +63,7 @@ class KinerjaBawahanController extends Controller
             'namaBulan' => $namaBulan,
             'viewMode' => $viewMode,
             'atasan' => $atasan,
+            'isKepalaKab' => $isKepalaKab,
         ]);
     }
 
@@ -79,8 +84,8 @@ class KinerjaBawahanController extends Controller
             $totalJamKerja = floor($totalDurasiMenit / 60);
             $sisaMenit = $totalDurasiMenit % 60;
 
-            // Target jam kerja per bulan (22 hari x 7.5 jam = 165 jam)
-            $targetJamKerjaBulanan = 165;
+            // Target jam kerja per bulan — dinamis berdasarkan pola kerja ASN
+            $targetJamKerjaBulanan = (new WorkingTimeService)->getTargetJamBulananUser((int)$bulan, (int)$tahun, $asn);
             $persentaseJamKerja = $targetJamKerjaBulanan > 0
                 ? round(($totalDurasiMenit / 60) / $targetJamKerjaBulanan * 100, 1)
                 : 0;
@@ -134,8 +139,12 @@ class KinerjaBawahanController extends Controller
             $totalJamKerja = floor($totalDurasiMenit / 60);
             $sisaMenit = $totalDurasiMenit % 60;
 
-            // Target jam kerja per tahun (250 hari x 7.5 jam = 1875 jam)
-            $targetJamKerjaTahunan = 1875;
+            // Target jam kerja per tahun — dinamis berdasarkan pola kerja ASN
+            $wts = new WorkingTimeService();
+            $targetJamKerjaTahunan = 0;
+            for ($m = 1; $m <= 12; $m++) {
+                $targetJamKerjaTahunan += $wts->getTargetJamBulananUser($m, (int)$tahun, $asn);
+            }
             $persentaseJamKerja = $targetJamKerjaTahunan > 0
                 ? round(($totalDurasiMenit / 60) / $targetJamKerjaTahunan * 100, 1)
                 : 0;

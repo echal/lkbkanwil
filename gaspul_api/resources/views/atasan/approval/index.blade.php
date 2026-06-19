@@ -10,11 +10,14 @@
     <div class="flex items-center justify-between">
         <div>
             <h2 class="text-2xl font-bold text-gray-800">Pusat Persetujuan</h2>
+            @php $isKankemenagKab = $isKabid && auth()->user()->atasan_id == 293 && stripos(auth()->user()->jabatan ?? '', 'kepala kantor') !== false; @endphp
             <p class="text-sm text-gray-600 mt-1">
-                @if($isKabid)
-                    Level: <span class="font-semibold text-indigo-700">Kepala Bidang (Kabid)</span> — menyetujui pengajuan bawahan langsung
+                @if($isKankemenagKab)
+                    Level: <span class="font-semibold text-teal-700">Kepala Kankemenag Kab</span> — menyetujui rekap dari Kepala Madrasah & bawahan langsung
+                @elseif($isKabid)
+                    Level: <span class="font-semibold text-indigo-700">Atasan Langsung</span> — menyetujui pengajuan bawahan langsung
                 @else
-                    Level: <span class="font-semibold text-purple-700">Kepala Kanwil (Kakanwil)</span> — menyetujui final setelah Kabid
+                    Level: <span class="font-semibold text-purple-700">Kepala Kanwil (Kakanwil)</span> — menyetujui final setelah Kankemenag Kab
                 @endif
             </p>
         </div>
@@ -278,29 +281,40 @@
              x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
 
             {{-- Filter Bar Rekap Absensi --}}
-            <div class="px-6 pt-4 pb-3 flex flex-col sm:flex-row sm:items-center gap-3 border-b border-gray-100">
-                {{-- Filter Status Pill --}}
+            <div class="px-6 pt-4 pb-3 space-y-3 border-b border-gray-100">
+                {{-- Baris 1: Filter Status Pill --}}
                 @php
                     $rekapFilters = [
-                        'semua'              => ['label' => 'Semua',        'color' => 'bg-gray-100 text-gray-700 hover:bg-gray-200'],
-                        'pending_kabid'      => ['label' => 'Menunggu Kabid',    'color' => 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'],
-                        'pending_kakanwil'   => ['label' => 'Menunggu Kakanwil', 'color' => 'bg-blue-100 text-blue-800 hover:bg-blue-200'],
-                        'approved'           => ['label' => 'Terverifikasi', 'color' => 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'],
-                        'rejected_kabid'     => ['label' => 'Ditolak Kabid',    'color' => 'bg-red-100 text-red-700 hover:bg-red-200'],
-                        'rejected_kakanwil'  => ['label' => 'Ditolak Kakanwil', 'color' => 'bg-red-100 text-red-700 hover:bg-red-200'],
+                        'semua'                => ['label' => 'Semua',                   'color' => 'bg-gray-100 text-gray-700 hover:bg-gray-200'],
+                        'pending_kabid'        => ['label' => 'Menunggu Atasan',          'color' => 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'],
+                        'pending_kankemenag'   => ['label' => 'Menunggu Kankemenag Kab',  'color' => 'bg-teal-100 text-teal-800 hover:bg-teal-200'],
+                        'pending_kakanwil'     => ['label' => 'Menunggu Kakanwil',        'color' => 'bg-blue-100 text-blue-800 hover:bg-blue-200'],
+                        'approved'             => ['label' => 'Terverifikasi',            'color' => 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'],
+                        'rejected_kabid'       => ['label' => 'Ditolak Atasan',           'color' => 'bg-red-100 text-red-700 hover:bg-red-200'],
+                        'rejected_kankemenag'  => ['label' => 'Ditolak Kankemenag Kab',   'color' => 'bg-red-100 text-red-700 hover:bg-red-200'],
+                        'rejected_kakanwil'    => ['label' => 'Ditolak Kakanwil',         'color' => 'bg-red-100 text-red-700 hover:bg-red-200'],
                     ];
-                    // Kabid hanya tampilkan status relevan untuk levelnya
-                    if ($isKabid) {
+                    // Sesuaikan filter yang ditampilkan berdasarkan level approver
+                    if ($isKankemenagKab) {
+                        // Kankemenag Kab melihat semua kecuali pending_kakanwil dan rejected_kakanwil
                         unset($rekapFilters['pending_kakanwil'], $rekapFilters['rejected_kakanwil']);
+                    } elseif ($isKabid) {
+                        // Kabid/Kepala Madrasah biasa: tidak perlu lihat kankemenag & kakanwil
+                        unset($rekapFilters['pending_kankemenag'], $rekapFilters['pending_kakanwil'],
+                              $rekapFilters['rejected_kankemenag'], $rekapFilters['rejected_kakanwil']);
+                    } else {
+                        // Kakanwil: tidak perlu lihat pending_kabid dan kankemenag
+                        unset($rekapFilters['pending_kabid'], $rekapFilters['pending_kankemenag'],
+                              $rekapFilters['rejected_kabid'], $rekapFilters['rejected_kankemenag']);
                     }
                 @endphp
-                <div class="flex items-center gap-2 flex-wrap flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
                     @foreach($rekapFilters as $val => $opt)
-                        <a href="{{ route('atasan.approval.index', array_merge(request()->query(), ['rekap_filter' => $val, 'rekap_bulan' => $rekapBulan, 'tab' => 'rekap'])) }}"
+                        <a href="{{ route('atasan.approval.index', array_merge(request()->except(['rekap_filter']), ['rekap_filter' => $val, 'rekap_bulan' => $rekapBulan, 'tab' => 'rekap'])) }}"
                            class="px-3 py-1 text-xs font-semibold rounded-full transition {{ $opt['color'] }}
                                   {{ ($rekapFilter ?? 'semua') === $val ? 'ring-2 ring-offset-1 ring-current' : '' }}">
                             {{ $opt['label'] }}
-                            @if($val === 'pending_kabid' && $isKabid && $rekapPendingCount > 0)
+                            @if($val === 'pending_kabid' && $isKabid && !$isKankemenagKab && $rekapPendingCount > 0)
                                 <span class="ml-1 bg-yellow-600 text-white text-xs px-1.5 rounded-full">{{ $rekapPendingCount }}</span>
                             @elseif($val === 'pending_kakanwil' && !$isKabid && $rekapPendingCount > 0)
                                 <span class="ml-1 bg-blue-700 text-white text-xs px-1.5 rounded-full">{{ $rekapPendingCount }}</span>
@@ -309,7 +323,7 @@
                     @endforeach
                 </div>
 
-                {{-- Dropdown Filter Bulan --}}
+                {{-- Baris 2: Filter Bulan + Pencarian NIP --}}
                 @php
                     $namaBulanRekap = [
                         1  => 'Januari', 2  => 'Februari', 3  => 'Maret',
@@ -324,17 +338,40 @@
                         $opsiBulanRekap[$key] = $namaBulanRekap[(int)$tgl->format('n')] . ' ' . $tgl->format('Y');
                     }
                 @endphp
-                <form method="GET" action="{{ route('atasan.approval.index') }}" class="flex items-center gap-2">
+                <form method="GET" action="{{ route('atasan.approval.index') }}" class="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                     <input type="hidden" name="tab" value="rekap">
                     <input type="hidden" name="rekap_filter" value="{{ $rekapFilter }}">
-                    <label class="text-xs text-gray-500 whitespace-nowrap">Bulan:</label>
-                    <select name="rekap_bulan" onchange="this.form.submit()"
-                            class="text-xs border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="semua" {{ ($rekapBulan ?? 'semua') === 'semua' ? 'selected' : '' }}>Semua Bulan</option>
-                        @foreach($opsiBulanRekap as $key => $label)
-                            <option value="{{ $key }}" {{ ($rekapBulan ?? 'semua') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
+
+                    {{-- Pencarian NIP --}}
+                    <div class="flex items-center gap-1">
+                        <label class="text-xs text-gray-500 whitespace-nowrap">NIP:</label>
+                        <input type="text" name="rekap_nip" value="{{ $rekapNip ?? '' }}"
+                               placeholder="Cari NIP..."
+                               class="text-xs border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 w-40">
+                    </div>
+
+                    {{-- Dropdown Bulan --}}
+                    <div class="flex items-center gap-1">
+                        <label class="text-xs text-gray-500 whitespace-nowrap">Bulan:</label>
+                        <select name="rekap_bulan"
+                                class="text-xs border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="semua" {{ ($rekapBulan ?? 'semua') === 'semua' ? 'selected' : '' }}>Semua Bulan</option>
+                            @foreach($opsiBulanRekap as $key => $label)
+                                <option value="{{ $key }}" {{ ($rekapBulan ?? 'semua') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <button type="submit"
+                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition">
+                        Cari
+                    </button>
+                    @if(($rekapNip ?? '') !== '')
+                        <a href="{{ route('atasan.approval.index', array_merge(request()->except(['rekap_nip']), ['tab' => 'rekap'])) }}"
+                           class="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
+                            Reset
+                        </a>
+                    @endif
                 </form>
             </div>
 
@@ -435,8 +472,10 @@
                                                 <div>
                                                     <h3 class="text-lg font-bold text-gray-900">Review Rekap Absensi</h3>
                                                     <p class="text-xs text-gray-500 mt-0.5">
-                                                        @if($isKabid)
-                                                            Persetujuan Level Kabid
+                                                        @if($isKankemenagKab)
+                                                            Persetujuan Level Kankemenag Kab
+                                                        @elseif($isKabid)
+                                                            Persetujuan Level Atasan Langsung
                                                         @else
                                                             Persetujuan Final Kakanwil
                                                         @endif
@@ -509,9 +548,16 @@
                                             <div class="px-6 py-4 border-t border-gray-200" x-data="{ confirmAction: '' }">
 
                                                 @php
-                                                    $isPendingForMe = $isKabid
-                                                        ? $rekap->status === \App\Models\RekapAbsensiPusaka::STATUS_PENDING_KABID
-                                                        : $rekap->status === \App\Models\RekapAbsensiPusaka::STATUS_PENDING_KAKANWIL;
+                                                    if ($isKankemenagKab) {
+                                                        $isPendingForMe = $rekap->status === \App\Models\RekapAbsensiPusaka::STATUS_PENDING_KANKEMENAG;
+                                                        $approveLabel   = 'Setujui & Teruskan ke Kakanwil';
+                                                    } elseif ($isKabid) {
+                                                        $isPendingForMe = $rekap->status === \App\Models\RekapAbsensiPusaka::STATUS_PENDING_KABID;
+                                                        $approveLabel   = 'Setujui & Teruskan ke Kankemenag Kab';
+                                                    } else {
+                                                        $isPendingForMe = $rekap->status === \App\Models\RekapAbsensiPusaka::STATUS_PENDING_KAKANWIL;
+                                                        $approveLabel   = 'Setujui Final';
+                                                    }
                                                 @endphp
 
                                                 @if($isPendingForMe)
@@ -530,7 +576,7 @@
                                                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                                             </svg>
-                                                            @if($isKabid) Setujui & Teruskan ke Kakanwil @else Setujui Final @endif
+                                                            {{ $approveLabel }}
                                                         </button>
                                                     </form>
 
@@ -716,11 +762,14 @@
                                 <td class="px-6 py-4 text-center text-gray-700">{{ $lap->total_hari }} hari</td>
                                 <td class="px-6 py-4 text-center text-gray-700">{{ $lap->total_jam }} jam</td>
                                 <td class="px-6 py-4 text-center">
-                                    @php $pct = $lap->capaian_persen; @endphp
+                                    @php
+                                        $pct = $lap->capaian_persen;
+                                        $lapTargetJam = $lap->target_jam ?? \App\Services\WorkingTimeService::targetJam($lap->bulan, $lap->tahun);
+                                    @endphp
                                     <span class="font-semibold {{ $pct >= 90 ? 'text-green-700' : ($pct >= 60 ? 'text-yellow-700' : 'text-red-600') }}">
                                         {{ number_format($pct, 1) }}%
                                     </span>
-                                    <span class="block text-xs text-gray-400">dari 165 jam</span>
+                                    <span class="block text-xs text-gray-400">dari {{ $lapTargetJam }} jam</span>
                                 </td>
 
                                 {{-- Kolom Status --}}
@@ -829,7 +878,7 @@
                                                         <span class="font-semibold {{ $lap->capaian_persen >= 90 ? 'text-green-700' : ($lap->capaian_persen >= 60 ? 'text-yellow-700' : 'text-red-600') }}">
                                                             {{ number_format($lap->capaian_persen, 1) }}%
                                                         </span>
-                                                        <span class="text-gray-400 text-xs ml-1">dari target 165 jam/bulan</span>
+                                                        <span class="text-gray-400 text-xs ml-1">dari target {{ $lap->target_jam ?? \App\Services\WorkingTimeService::targetJam($lap->bulan, $lap->tahun) }} jam/bulan</span>
                                                     </dd>
 
                                                     <dt class="font-medium text-gray-500">Status</dt>

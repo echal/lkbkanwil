@@ -52,36 +52,37 @@ class SkpTahunanPolicy
     }
 
     /**
-     * Determine if ASN can request revision
-     * Only if SKP is approved (DISETUJUI)
+     * Determine if user can request revision of their own SKP.
      *
-     * CRITICAL: This is why button appears/disappears
+     * Allowed:
+     * - role ASN (semua ASN)
+     * - role ATASAN yang bukan puncak hierarki (atasan_id != NULL)
+     *
+     * Blocked:
+     * - role ATASAN puncak hierarki (atasan_id = NULL) — tidak ada yang bisa menyetujui
+     * - user bukan pemilik SKP
+     * - status bukan DISETUJUI
      */
     public function requestRevision(User $user, SkpTahunan $skp): bool
     {
-        // DEBUG LOG (remove after production works)
-        Log::info('Policy requestRevision Check', [
-            'user_id' => $user->id,
-            'user_role' => $user->role,
-            'skp_id' => $skp->id,
-            'skp_user_id' => $skp->user_id,
-            'skp_status' => $skp->status,
-            'ownership_match' => $skp->user_id == $user->id,
-            'can_request' => $skp->canRequestRevision(),
-        ]);
-
         // Must own the SKP
         if ($skp->user_id != $user->id) {
             return false;
         }
 
-        // Must be ASN role
-        if ($user->role !== 'ASN') {
+        // ATASAN puncak hierarki (atasan_id = NULL) tidak bisa ajukan revisi
+        // karena tidak ada atasan yang bisa menyetujuinya
+        if ($user->role === 'ATASAN' && is_null($user->atasan_id)) {
             return false;
         }
 
-        // Can only request revision if status is DISETUJUI
-        return $skp->status === 'DISETUJUI';
+        // Hanya ASN dan ATASAN non-puncak yang boleh
+        if (!in_array($user->role, ['ASN', 'ATASAN'])) {
+            return false;
+        }
+
+        // Can only request revision if status is DISETUJUI or REVISI_DITOLAK
+        return in_array($skp->status, ['DISETUJUI', 'REVISI_DITOLAK']);
     }
 
     /**
