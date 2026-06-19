@@ -401,6 +401,7 @@
     var _currentPage     = 1;
     var _sending         = false;
     var _starting        = false;
+    var _csrfRetried     = false;
 
     // ── Unread / notification state (Step 3) ────────────────────────────────────
     var _unreadCount        = 0;
@@ -561,7 +562,6 @@
     // Dipanggil saat widget dibuka dan ada conversation aktif — tandai pesan terbaca
     function markConversationRead() {
         if (!_conversation) return;
-        _csrfToken = readCookie('XSRF-TOKEN');
         fetch(EP.read.replace('{id}', _conversation.id), {
             method: 'POST',
             credentials: 'include',
@@ -776,9 +776,6 @@
     // Request mentah POST /conversations — dipakai baik oleh auto-create maupun
     // tombol manual "Mulai baru" di closed state.
     function createConversationRequest() {
-        // Re-bootstrap CSRF jika belum atau kedaluwarsa
-        _csrfToken = readCookie('XSRF-TOKEN');
-
         return fetch(EP.create, {
             method: 'POST',
             credentials: 'include',
@@ -822,7 +819,6 @@
         _sending = true;
         textarea.value = '';
         autoResize(textarea);
-        _csrfToken = readCookie('XSRF-TOKEN');
 
         var url = EP.send.replace('{id}', _conversation.id);
 
@@ -851,18 +847,30 @@
             if (tempEl) tempEl.remove();
             _seenIds.delete(tempId);
 
+            _csrfRetried = false;
             if (data.message) addMessage(data.message, true);
             scrollToBottom();
         })
         .catch(function (err) {
-            // Rollback: kembalikan teks ke textarea
-            textarea.value = body;
-            autoResize(textarea);
             // Hapus temp message
             var tempEl = document.getElementById('msg-' + tempId);
             if (tempEl) tempEl.remove();
             _seenIds.delete(tempId);
 
+            if (err.status === 419 && !_csrfRetried) {
+                // Token expired — refresh sekali lalu kirim ulang
+                _csrfRetried = true;
+                _sending     = false;
+                textarea.value = body;
+                autoResize(textarea);
+                refreshCsrfAndRetry(function () { sendMessage(); });
+                return;
+            }
+
+            // Rollback: kembalikan teks ke textarea
+            textarea.value = body;
+            autoResize(textarea);
+            _csrfRetried = false;
             showBannerError(mapError(err.status || 0));
         })
         .finally(function () {
@@ -1124,10 +1132,23 @@
     function mapError(httpStatus) {
         if (httpStatus === 401) return 'Silakan login ulang ke helpdesk.';
         if (httpStatus === 403) return 'Akses ditolak.';
-        if (httpStatus === 419) return 'Sesi berakhir. Muat ulang halaman.';
+        if (httpStatus === 419) return 'Sesi berakhir, memperbarui token...';
         if (httpStatus >= 500)  return 'Server helpdesk bermasalah. Coba beberapa saat lagi.';
         if (httpStatus === 0)   return 'Tidak dapat terhubung ke helpdesk.';
         return 'Terjadi kesalahan (' + httpStatus + ').';
+    }
+
+    // Jika ada 419 saat kirim pesan — refresh token lalu kirim ulang sekali
+    function refreshCsrfAndRetry(callback) {
+        fetch(EP.init, { credentials: 'include' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                _csrfToken = data.csrf_token || '';
+                callback();
+            })
+            .catch(function () {
+                showBannerError('Sesi berakhir. Muat ulang halaman.');
+            });
     }
 
     // ── Escape Esc key ────────────────────────────────────────────────────────
