@@ -337,7 +337,7 @@
     // Diambil dari config('services.helpdesk.url') — BUKAN env() langsung, supaya
     // tetap benar setelah `php artisan config:cache` (Phase I.2A-B).
     var HD_BASE    = '{{ rtrim(config("services.helpdesk.url"), "/") }}';
-    var POLL_MS    = 5000;       // interval polling saat widget terbuka
+    var POLL_MS    = 8000;       // interval polling saat widget terbuka
     var MAX_RENDER = 100;        // maksimum pesan yang dirender
 
     var EP = {
@@ -941,6 +941,16 @@
         .then(function (res) {
             if (res.status === 401 || res.status === 403) {
                 stopPolling();
+                return null;
+            }
+            if (res.status === 429) {
+                // Rate limit — berhenti poll 30 detik lalu lanjut kembali
+                stopPolling();
+                setTimeout(function () {
+                    if (_open && _conversation && _conversation.status !== 'closed') {
+                        startPolling();
+                    }
+                }, 30000);
                 return null;
             }
             if (!res.ok) return null;
