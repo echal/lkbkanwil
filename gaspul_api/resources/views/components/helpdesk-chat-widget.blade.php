@@ -560,6 +560,8 @@
     }
 
     // Dipanggil saat widget dibuka dan ada conversation aktif — tandai pesan terbaca
+    // Jika sesi expired (401) → refresh CSRF via doInit lalu retry sekali
+    var _markReadRetried = false;
     function markConversationRead() {
         if (!_conversation) return;
         fetch(EP.read.replace('{id}', _conversation.id), {
@@ -571,8 +573,22 @@
                 'X-XSRF-TOKEN': _csrfToken,
             },
         })
-        .then(function () {
+        .then(function (res) {
+            if (res.status === 401 && !_markReadRetried) {
+                // Sesi helpdesk expired — lakukan SSO silent lalu retry sekali
+                _markReadRetried = true;
+                return silentSso().then(function () {
+                    return fetch(EP.init, { credentials: 'include' });
+                }).then(function (r) {
+                    return r.json();
+                }).then(function (d) {
+                    _csrfToken = d.csrf_token || '';
+                    _markReadRetried = false;
+                    markConversationRead();
+                }).catch(function () { _markReadRetried = false; });
+            }
             // Reset badge seketika — counter kembali 0 tanpa menunggu polling 30s berikutnya
+            _markReadRetried = false;
             _unreadCount = 0;
             updateTitleBadge(0);
             _notifiedThisCycle = false;
